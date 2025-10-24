@@ -1,6 +1,451 @@
 """
-Konfiguracja LangGraph - orchestracja agentów AI
+Konfiguracja LangGraph z agentami Supervisor, Workforce i Strategist
 """
+
+import json
+from typing import Dict, Any, List, Optional, Literal
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, BaseMessage
+from langchain_openai import ChatOpenAI
+from langgraph.graph import StateGraph, END
+from langgraph.checkpoint.memory import MemorySaver
+import structlog
+
+from agents.states import AgentState
+from agents.prompts import (
+    SUPERVISOR_PROMPT,
+    WORKFORCE_PROMPT, 
+    STRATEGIST_PROMPT
+)
+from services.scaleway_genai_service import ScalewayGenAIService
+from services.openai_service import OpenAIService
+from services.rag_service import RAGService
+from utils.config import get_settings
+
+logger = structlog.get_logger(__name__)
+
+class LangGraphOrchestrator:
+    """Orkiestrator LangGraph z wieloma agentami"""
+    
+    def __init__(self):
+        self.settings = get_settings()
+        self.memory = MemorySaver()
+        
+        # Inicjalizuj serwisy
+        self.scaleway_service = ScalewayGenAIService()
+        self.openai_service = OpenAIService()
+        self.rag_service = RAGService()
+        
+        # Zbuduj graf
+        self.app = self._create_graph()
+    
+    def _create_graph(self) -> StateGraph:
+        """Tworzenie grafu LangGraph z agentami"""
+        
+        # Definicja workflow
+        workflow = StateGraph(AgentState)
+        
+        # Dodaj węzły
+        workflow.add_node("supervisor", self.supervisor_agent)
+        workflow.add_node("workforce", self.workforce_agent)  
+        workflow.add_node("strategist", self.strategist_agent)
+        
+        # Dodaj routing
+        workflow.set_entry_point("supervisor")
+        
+        workflow.add_conditional_edges(
+            "supervisor",
+            self.should_continue,
+            {
+                "workforce": "workforce",
+                "strategist": "strategist", 
+                "FINISH": END
+            }
+        )
+        
+        workflow.add_edge("workforce", "supervisor")
+        workflow.add_edge("strategist", "supervisor")
+        
+        # Skompiluj z checkpointer
+        return workflow.compile(checkpointer=self.memory)
+    
+    async def supervisor_agent(self, state: AgentState) -> AgentState:
+        """
+        Agent nadzorujący - routuje zadania do odpowiednich agentów
+        """
+        try:
+            logger.info("Supervisor agent processing", 
+                       messages_count=len(state["messages"]),
+                       current_agent=state.get("current_agent"))
+            
+            # Pobierz ostatnią wiadomość użytkownika
+            last_message = state["messages"][-1] if state["messages"] else None
+            
+            if not last_message:
+                return {
+                    **state,
+                    "current_agent": "supervisor",
+                    "next_action": "FINISH",
+                    "messages": state["messages"] + [
+                        AIMessage(content="Brak wiadomości do przetworzenia.")
+                    ]
+                }
+            
+            # Przeanalizuj treść aby zdecydować o routingu
+            content = last_message.content if hasattr(last_message, 'content') else str(last_message)
+            
+            # Logika routingu
+            routing_decision = await self._analyze_routing(content, state)
+            
+            # Dodaj wiadomość supervisora z decyzją
+            supervisor_message = AIMessage(
+                content=f"[SUPERVISOR] Przekierowuję zadanie do: {routing_decision['agent']}. "
+                       f"Powód: {routing_decision['reason']}"
+            )
+            
+            return {
+                **state,
+                "current_agent": "supervisor",
+                "next_action": routing_decision["agent"],
+                "routing_reason": routing_decision["reason"],
+                "messages": state["messages"] + [supervisor_message]
+            }
+            
+        except Exception as e:
+            logger.error("Błąd w supervisor agent", error=str(e))
+            return {
+                **state,
+                "current_agent": "supervisor",
+                "next_action": "FINISH",
+                "error": str(e),
+                "messages": state["messages"] + [
+                    AIMessage(content=f"Błąd supervisora: {str(e)}")
+                ]
+            }
+    
+    async def _analyze_routing(self, content: str, state: AgentState) -> Dict[str, str]:
+        """Analiza treści dla routingu"""
+        
+        # Słowa kluczowe dla różnych agentów
+        strategic_keywords = [
+            "strategia", "plan", "analiza", "prognoza", "wizja", "długoterminowy",
+            "strategy", "analysis", "forecast", "planning", "vision", "roadmap"
+        ]
+        
+        operational_keywords = [
+            "zadanie", "wykonaj", "zrób", "napisz", "stwórz", "wygeneruj",
+            "task", "do", "create", "generate", "write", "make", "execute"
+        ]
+        
+        content_lower = content.lower()
+        
+        # Sprawdź czy to zadanie strategiczne
+        if any(keyword in content_lower for keyword in strategic_keywords):
+            return {
+                "agent": "strategist",
+                "reason": "Wykryto zapytanie strategiczne wymagające głębokiej analizy"
+            }
+        
+        # Sprawdź czy to zadanie operacyjne
+        if any(keyword in content_lower for keyword in operational_keywords):
+            return {
+                "agent": "workforce", 
+                "reason": "Wykryto zadanie operacyjne do szybkiego wykonania"
+            }
+        
+        # Sprawdź długość - długie zapytania do strategista
+        if len(content) > 500:
+            return {
+                "agent": "strategist",
+                "reason": "Długie zapytanie wymagające szczegółowej analizy"
+            }
+        
+        # Domyślnie workforce dla prostych zadań
+        return {
+            "agent": "workforce",
+            "reason": "Standardowe zadanie operacyjne"
+        }
+    
+    async def workforce_agent(self, state: AgentState) -> AgentState:
+        """
+        Agent siły roboczej - szybkie wykonywanie zadań przez Scaleway Mistral
+        """
+        try:
+            logger.info("Workforce agent processing",
+                       messages_count=len(state["messages"]))
+            
+            # Pobierz kontekst z RAG jeśli potrzebny
+            last_user_message = None
+            for msg in reversed(state["messages"]):
+                if hasattr(msg, 'content') and not msg.content.startswith('['):
+                    last_user_message = msg.content
+                    break
+            
+            rag_context = ""
+            if last_user_message:
+                rag_context = await self.rag_service.get_context_for_query(
+                    query=last_user_message,
+                    max_chunks=2,
+                    similarity_threshold=0.6
+                )
+            
+            # Przygotuj prompt
+            system_prompt = WORKFORCE_PROMPT
+            if rag_context and rag_context != "Brak relevantnych dokumentów w bazie wiedzy.":
+                system_prompt += f"\n\nKONTEKST Z BAZY WIEDZY:\n{rag_context}"
+            
+            # Przygotuj wiadomości dla Scaleway
+            messages = []
+            for msg in state["messages"]:
+                if hasattr(msg, 'content') and not msg.content.startswith('['):
+                    if isinstance(msg, HumanMessage):
+                        messages.append({"role": "user", "content": msg.content})
+                    elif isinstance(msg, AIMessage):
+                        messages.append({"role": "assistant", "content": msg.content})
+            
+            # Dodaj system prompt
+            messages.insert(0, {"role": "system", "content": system_prompt})
+            
+            # Wywołaj Scaleway GenAI
+            async with self.scaleway_service as service:
+                result = await service.chat_completion(
+                    messages=messages,
+                    max_tokens=1500,
+                    temperature=0.7
+                )
+            
+            if result['success']:
+                response_content = result['message']['content']
+                
+                # Dodaj informację o źródle
+                if rag_context and rag_context != "Brak relevantnych dokumentów w bazie wiedzy.":
+                    response_content += "\n\n[Odpowiedź oparta na dokumentach z bazy wiedzy]"
+                
+                response_message = AIMessage(content=response_content)
+                
+                logger.info("Workforce agent completed successfully",
+                           response_length=len(response_content))
+                
+                return {
+                    **state,
+                    "current_agent": "workforce", 
+                    "next_action": "supervisor",
+                    "messages": state["messages"] + [response_message],
+                    "rag_used": bool(rag_context and rag_context != "Brak relevantnych dokumentów w bazie wiedzy.")
+                }
+            else:
+                error_msg = f"Błąd Scaleway GenAI: {result.get('error', 'Unknown error')}"
+                logger.error("Workforce agent failed", error=error_msg)
+                
+                return {
+                    **state,
+                    "current_agent": "workforce",
+                    "next_action": "FINISH", 
+                    "error": error_msg,
+                    "messages": state["messages"] + [
+                        AIMessage(content=f"Przepraszam, wystąpił błąd: {error_msg}")
+                    ]
+                }
+                
+        except Exception as e:
+            logger.error("Błąd w workforce agent", error=str(e))
+            return {
+                **state,
+                "current_agent": "workforce",
+                "next_action": "FINISH",
+                "error": str(e),
+                "messages": state["messages"] + [
+                    AIMessage(content=f"Błąd workforce agent: {str(e)}")
+                ]
+            }
+    
+    async def strategist_agent(self, state: AgentState) -> AgentState:
+        """
+        Agent strategiczny - głęboka analiza przez OpenAI GPT-4o
+        """
+        try:
+            logger.info("Strategist agent processing",
+                       messages_count=len(state["messages"]))
+            
+            # Pobierz rozszerzony kontekst z RAG
+            last_user_message = None
+            for msg in reversed(state["messages"]):
+                if hasattr(msg, 'content') and not msg.content.startswith('['):
+                    last_user_message = msg.content
+                    break
+            
+            rag_context = ""
+            if last_user_message:
+                rag_context = await self.rag_service.get_context_for_query(
+                    query=last_user_message,
+                    max_chunks=5,  # Więcej kontekstu dla strategista
+                    similarity_threshold=0.5
+                )
+            
+            # Przygotuj prompt
+            system_prompt = STRATEGIST_PROMPT
+            if rag_context and rag_context != "Brak relevantnych dokumentów w bazie wiedzy.":
+                system_prompt += f"\n\nKONTEKST Z BAZY WIEDZY:\n{rag_context}"
+            
+            # Przygotuj wiadomości dla OpenAI
+            messages = [
+                {"role": "system", "content": system_prompt}
+            ]
+            
+            for msg in state["messages"]:
+                if hasattr(msg, 'content') and not msg.content.startswith('['):
+                    if isinstance(msg, HumanMessage):
+                        messages.append({"role": "user", "content": msg.content})
+                    elif isinstance(msg, AIMessage):
+                        messages.append({"role": "assistant", "content": msg.content})
+            
+            # Wywołaj OpenAI
+            result = await self.openai_service.chat_completion(
+                messages=messages,
+                model="gpt-4o",
+                max_tokens=2000,
+                temperature=0.3  # Niższa temperatura dla strategicznych analiz
+            )
+            
+            if result['success']:
+                response_content = result['message']['content']
+                
+                # Dodaj informację o źródle
+                if rag_context and rag_context != "Brak relevantnych dokumentów w bazie wiedzy.":
+                    response_content += "\n\n[Strategiczna analiza oparta na dokumentach z bazy wiedzy]"
+                
+                response_message = AIMessage(content=response_content)
+                
+                logger.info("Strategist agent completed successfully",
+                           response_length=len(response_content))
+                
+                return {
+                    **state,
+                    "current_agent": "strategist",
+                    "next_action": "supervisor", 
+                    "messages": state["messages"] + [response_message],
+                    "rag_used": bool(rag_context and rag_context != "Brak relevantnych dokumentów w bazie wiedzy.")
+                }
+            else:
+                error_msg = f"Błąd OpenAI: {result.get('error', 'Unknown error')}"
+                logger.error("Strategist agent failed", error=error_msg)
+                
+                return {
+                    **state,
+                    "current_agent": "strategist",
+                    "next_action": "FINISH",
+                    "error": error_msg, 
+                    "messages": state["messages"] + [
+                        AIMessage(content=f"Przepraszam, wystąpił błąd strategiczny: {error_msg}")
+                    ]
+                }
+                
+        except Exception as e:
+            logger.error("Błąd w strategist agent", error=str(e))
+            return {
+                **state,
+                "current_agent": "strategist",
+                "next_action": "FINISH",
+                "error": str(e),
+                "messages": state["messages"] + [
+                    AIMessage(content=f"Błąd strategist agent: {str(e)}")
+                ]
+            }
+    
+    def should_continue(self, state: AgentState) -> Literal["workforce", "strategist", "FINISH"]:
+        """
+        Funkcja decyzyjna dla routingu
+        """
+        try:
+            next_action = state.get("next_action", "FINISH")
+            
+            logger.info("Routing decision", 
+                       next_action=next_action,
+                       current_agent=state.get("current_agent"))
+            
+            # Sprawdź czy jest błąd
+            if state.get("error"):
+                return "FINISH"
+            
+            # Sprawdź czy supervisor podjął decyzję
+            if next_action in ["workforce", "strategist"]:
+                return next_action
+            
+            # Sprawdź czy agenci wykonali zadanie
+            if state.get("current_agent") in ["workforce", "strategist"]:
+                # Po wykonaniu zadania przez agenta, wróć do supervisora
+                # który może zdecydować o zakończeniu lub dalszym procesowaniu
+                return "FINISH"  # Tymczasowo kończymy po jednej iteracji
+            
+            return "FINISH"
+            
+        except Exception as e:
+            logger.error("Błąd w should_continue", error=str(e))
+            return "FINISH"
+    
+    async def invoke_async(
+        self, 
+        message: str, 
+        thread_id: str = "default"
+    ) -> Dict[str, Any]:
+        """
+        Asynchroniczne wywołanie grafu LangGraph
+        
+        Args:
+            message: Wiadomość użytkownika
+            thread_id: ID wątku konwersacji
+            
+        Returns:
+            Dict z wynikiem przetwarzania
+        """
+        try:
+            logger.info("Starting LangGraph invocation",
+                       message_length=len(message),
+                       thread_id=thread_id)
+            
+            # Przygotuj stan początkowy
+            initial_state = {
+                "messages": [HumanMessage(content=message)],
+                "current_agent": None,
+                "next_action": None,
+                "thread_id": thread_id,
+                "rag_used": False
+            }
+            
+            # Konfiguracja
+            config = {
+                "configurable": {"thread_id": thread_id}
+            }
+            
+            # Wywołaj graf
+            final_state = await self.app.ainvoke(initial_state, config)
+            
+            # Pobierz ostatnią odpowiedź
+            last_message = final_state["messages"][-1] if final_state["messages"] else None
+            response_content = last_message.content if last_message else "Brak odpowiedzi"
+            
+            logger.info("LangGraph invocation completed", 
+                       final_agent=final_state.get("current_agent"),
+                       messages_count=len(final_state["messages"]),
+                       rag_used=final_state.get("rag_used", False))
+            
+            return {
+                'success': True,
+                'response': response_content,
+                'agent_used': final_state.get("current_agent"),
+                'routing_reason': final_state.get("routing_reason"),
+                'rag_used': final_state.get("rag_used", False),
+                'thread_id': thread_id,
+                'message_count': len(final_state["messages"])
+            }
+            
+        except Exception as e:
+            logger.error("Błąd w LangGraph invocation", error=str(e))
+            return {
+                'success': False,
+                'error': str(e),
+                'response': f"Przepraszam, wystąpił błąd: {str(e)}",
+                'thread_id': thread_id
+            }
 
 import json
 from typing import Dict, Any, Literal
