@@ -47,7 +47,8 @@ def gatekeeper_node(state: AgentState) -> dict:
         return {"is_relevant": False, "error_message": response}
 
     # B. Dopiero teraz sprawdzamy treść merytoryczną
-    is_relevant = "TAK" in response.strip().upper()
+    processed_response = response.strip().upper()
+    is_relevant = ("TAK" in processed_response) or ("YES" in processed_response)    
 
     if not is_relevant:
         print(f"WYNIK: Odrzucono (Nieistotny): {state.source_url}")

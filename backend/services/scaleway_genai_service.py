@@ -37,6 +37,8 @@ def call_scaleway_api(prompt: str, model: str = "qwen3-235b-a22b-instruct-2507")
             response_content = data["choices"][0].get("message", {}).get("content")
             if response_content:
                 print("--- Scaleway GenAI: Sukces ---")
+                # DODAJ TĘ LINIĘ:
+                print(f"SUROWA ODPOWIEDŹ MODELU: {response_content}")
                 return response_content
         
         print(f"BŁĄD: Otrzymano nieoczekiwaną odpowiedź ze Scaleway: {data}")
