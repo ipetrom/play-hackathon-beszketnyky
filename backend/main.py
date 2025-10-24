@@ -1,265 +1,156 @@
-"""
-Hackathon Beszketnyky - Main FastAPI Application
-================================================
-
-Backend API dla orkiestracji agentów AI z wykorzystaniem LangGraph.
-Stack: Python + FastAPI + LangGraph + Scaleway + OpenAI
-"""
-
-from typing import Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, BackgroundTasks
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+import json
+from fastapi import FastAPI, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-import logging
-import structlog
-from contextlib import asynccontextmanager
+from typing import List
 
-from agents.langgraph_config import agent_graph
-from database.connection import init_database
-from services.scaleway_service import ScalewayService
-from utils.config import get_settings
+# Importowanie naszego skompilowanego grafu
+from agents.langgraph_config import agent_graph_app
 
-# Konfiguracja logowania
-logging.basicConfig(level=logging.INFO)
-structlog.configure(
-    processors=[
-        structlog.stdlib.filter_by_level,
-        structlog.stdlib.add_logger_name,
-        structlog.stdlib.add_log_level,
-        structlog.stdlib.PositionalArgumentsFormatter(),
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.StackInfoRenderer(),
-        structlog.processors.format_exc_info,
-        structlog.processors.UnicodeDecoder(),
-        structlog.processors.JSONRenderer()
-    ],
-    context_class=dict,
-    logger_factory=structlog.stdlib.LoggerFactory(),
-    cache_logger_on_first_use=True,
-)
-logger = structlog.get_logger(__name__)
+# Importowanie naszych (zamockowanych) serwisów i promptów
+from services import rag_service, llm_clients
+from agents.prompts import FINAL_TIPS_ALERTS_PROMPT, PERPLEXITY_QUERIES
 
-settings = get_settings()
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Zarządzanie cyklem życia aplikacji"""
-    # Startup
-    logger.info("Inicjalizacja aplikacji...")
-    await init_database()
-    logger.info("Aplikacja zainicjalizowana pomyślnie")
-    
-    yield
-    
-    # Shutdown
-    logger.info("Zamykanie aplikacji...")
-
-# Utworzenie instancji FastAPI
+# Inicjalizacja aplikacji FastAPI
 app = FastAPI(
-    title="Hackathon Beszketnyky API",
-    description="API dla orkiestracji agentów AI z wykorzystaniem LangGraph i Scaleway",
-    version="1.0.0",
-    lifespan=lifespan
+    title="Project Hyperion API",
+    description="Backend dla Smart Tracker (Play Hackathon)"
 )
 
-# Konfiguracja CORS
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# --- Modele Danych (Pydantic) dla API ---
 
-# ====== MODELE PYDANTIC ======
-
-class AgentRequest(BaseModel):
-    """Request model dla komunikacji z agentami"""
-    message: str
-    thread_id: Optional[str] = None
-    user_id: Optional[str] = None
-    agent_type: Optional[str] = "workforce"  # "workforce" lub "strategist"
-    context: Optional[Dict[str, Any]] = None
-
-class AgentResponse(BaseModel):
-    """Response model od agentów"""
-    response: str
-    thread_id: str
-    agent_used: str
-    metadata: Optional[Dict[str, Any]] = None
-
-class HealthCheck(BaseModel):
-    """Model dla health check"""
-    status: str
-    version: str
-    environment: str
-    database_connected: bool
-    scaleway_connected: bool
-
-# ====== ENDPOINT GŁÓWNY ======
-
-@app.post("/agent", response_model=AgentResponse)
-async def run_agent(request: AgentRequest, background_tasks: BackgroundTasks):
+class IngestRequest(BaseModel):
     """
-    Główny endpoint do komunikacji z agentami AI
+    Co scraper wysyła do naszego API, aby rozpocząć przetwarzanie.
+    """
+    category: str  # "prawna", "polityczna", "rynkowa"
+    source_url: str
+    raw_content: str
+
+class AskRequest(BaseModel):
+    """
+    Co wysyła frontend, aby zadać pytanie chatbotowi RAG.
+    """
+    category: str  # "prawna", "polityczna", "rynkowa"
+    query: str
+
+class AskResponse(BaseModel):
+    answer: str
     
-    Orkiestruje wybór odpowiedniego agenta (Workforce/Strategist) 
-    na podstawie kontekstu i typu żądania.
+class ReportResponse(BaseModel):
     """
-    try:
-        logger.info("Otrzymano request do agenta", 
-                   message_length=len(request.message),
-                   agent_type=request.agent_type,
-                   thread_id=request.thread_id)
-        
-        # Konfiguracja dla LangGraph
-        config = {
-            "configurable": {
-                "thread_id": request.thread_id or f"thread_{hash(request.message)}",
-                "user_id": request.user_id,
-                "agent_type": request.agent_type
-            }
-        }
-        
-        # Przygotowanie stanu początkowego
-        initial_state = {
-            "messages": [{"role": "human", "content": request.message}],
-            "agent_type": request.agent_type,
-            "context": request.context or {}
-        }
-        
-        # Wywołanie LangGraph
-        result = await agent_graph.ainvoke(initial_state, config)
-        
-        # Logowanie w tle
-        background_tasks.add_task(
-            log_interaction,
-            request.message,
-            result.get("messages", [])[-1].get("content", ""),
-            request.thread_id,
-            request.agent_type
-        )
-        
-        return AgentResponse(
-            response=result.get("messages", [])[-1].get("content", "Przepraszam, wystąpił błąd."),
-            thread_id=config["configurable"]["thread_id"],
-            agent_used=result.get("agent_used", request.agent_type),
-            metadata=result.get("metadata", {})
-        )
-        
-    except Exception as e:
-        logger.error("Błąd podczas przetwarzania requestu", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Błąd serwera: {str(e)}")
-
-# ====== ENDPOINT STRUMIENIOWY ======
-
-@app.post("/agent/stream")
-async def stream_agent_response(request: AgentRequest):
+    Finalny, skonsolidowany raport dla frontendu.
     """
-    Endpoint do strumieniowego otrzymywania odpowiedzi od agentów
+    alerts: str
+    tips: str
+    report_prawny: str
+    report_polityczny: str
+    report_rynkowy: str
+
+# --- Endpointy API ---
+
+@app.post("/api/v1/ingest", status_code=202)
+async def ingest_article(request: IngestRequest, background_tasks: BackgroundTasks):
     """
-    try:
-        config = {
-            "configurable": {
-                "thread_id": request.thread_id or f"thread_{hash(request.message)}",
-                "user_id": request.user_id,
-                "agent_type": request.agent_type
-            }
-        }
-        
-        initial_state = {
-            "messages": [{"role": "human", "content": request.message}],
-            "agent_type": request.agent_type,
-            "context": request.context or {}
-        }
-        
-        async def generate_response():
-            async for chunk in agent_graph.astream(initial_state, config):
-                if "messages" in chunk and chunk["messages"]:
-                    yield f"data: {chunk['messages'][-1].get('content', '')}\n\n"
-            yield "data: [DONE]\n\n"
-        
-        return StreamingResponse(
-            generate_response(),
-            media_type="text/stream",
-            headers={"Cache-Control": "no-cache"}
-        )
-        
-    except Exception as e:
-        logger.error("Błąd podczas streamingu", error=str(e))
-        raise HTTPException(status_code=500, detail=f"Błąd streamingu: {str(e)}")
+    Endpoint dla Scrapera (Agent 1).
+    Przyjmuje dane i uruchamia graf agentów W TLE.
+    Natychmiast zwraca 202 Accepted.
+    """
+    print(f"Otrzymano zlecenie 'ingest' dla kategorii: {request.category}")
+    
+    # Sprawdzenie, czy kategoria jest poprawna
+    if request.category not in rag_service.RAG_COLLECTIONS:
+        raise HTTPException(status_code=400, detail="Nieznana kategoria. Użyj 'prawna', 'polityczna' lub 'rynkowa'.")
 
-# ====== ENDPOINTY POMOCNICZE ======
+    # Uruchamiamy graf w tle (kluczowe dla hackathonu!)
+    # Scraper nie musi czekać na zakończenie analizy (30+ sekund)
+    background_tasks.add_task(
+        agent_graph_app.invoke,
+        {
+            "category": request.category,
+            "source_url": request.source_url,
+            "raw_content": request.raw_content
+        }
+    )
+    
+    return {"message": "Zlecenie przyjęte do przetwarzania."}
 
-@app.get("/health", response_model=HealthCheck)
-async def health_check():
-    """Health check endpoint"""
+
+@app.post("/api/v1/ask", response_model=AskResponse)
+async def ask_rag_chatbot(request: AskRequest):
+    """
+    Endpoint dla Chatbota (Frontend).
+    Pyta *konkretną* kolekcję RAG.
+    """
+    print(f"Otrzymano zapytanie RAG dla kategorii: {request.category}")
+    
+    # Sprawdzenie, czy kategoria jest poprawna
+    if request.category not in rag_service.RAG_COLLECTIONS:
+        raise HTTPException(status_code=400, detail="Nieznana kategoria.")
+        
+    collection_name = rag_service.RAG_COLLECTIONS[request.category]
+    
+    # Wywołujemy serwis RAG (na razie mock)
+    answer = rag_service.query_rag_collection(
+        query=request.query,
+        collection_name=collection_name
+    )
+    
+    return AskResponse(answer=answer)
+
+
+@app.get("/api/v1/full_report", response_model=ReportResponse)
+async def get_full_report():
+    """
+    Endpoint dla Głównego Raportu (Frontend).
+    Implementuje "Code-Based Report" oraz "Agent 5: Tips + Alerts".
+    """
+    print("Generuję pełny raport...")
+    
+    # 1. "Code-Based Report": Zaciągamy podsumowania z każdej kategorii RAG
+    print("Krok 1: Zaciągam raporty z RAG...")
+    report_prawny = rag_service.query_rag_collection(
+        query="Podsumuj dzisiejsze kluczowe zmiany prawne.",
+        collection_name=rag_service.RAG_COLLECTIONS["prawna"]
+    )
+    report_polityczny = rag_service.query_rag_collection(
+        query="Podsumuj dzisiejsze kluczowe decyzje polityczne.",
+        collection_name=rag_service.RAG_COLLECTIONS["polityczna"]
+    )
+    report_rynkowy = rag_service.query_rag_collection(
+        query="Podsumuj dzisiejsze kluczowe ruchy rynkowe.",
+        collection_name=rag_service.RAG_COLLECTIONS["rynkowa"]
+    )
+    
+    # 2. "Agent 5: Tips + Alerts"
+    print("Krok 2: Uruchamiam Agenta 5 (Tips/Alerts)...")
+    final_prompt = FINAL_TIPS_ALERTS_PROMPT.format(
+        report_prawny=report_prawny,
+        report_polityczny=report_polityczny,
+        report_rynkowy=report_rynkowy
+    )
+    
+    # Wywołujemy mądry model
+    analysis_json_string = llm_clients.invoke_smart_model(final_prompt)
+    
     try:
-        # Sprawdzenie połączenia z bazą danych
-        db_connected = await check_database_connection()
-        
-        # Sprawdzenie połączenia z Scaleway
-        scaleway_service = ScalewayService()
-        scaleway_connected = await scaleway_service.check_connection()
-        
-        return HealthCheck(
-            status="healthy" if db_connected and scaleway_connected else "degraded",
-            version="1.0.0",
-            environment=settings.ENVIRONMENT,
-            database_connected=db_connected,
-            scaleway_connected=scaleway_connected
-        )
-    except Exception as e:
-        logger.error("Błąd health check", error=str(e))
-        return HealthCheck(
-            status="unhealthy",
-            version="1.0.0",
-            environment=settings.ENVIRONMENT,
-            database_connected=False,
-            scaleway_connected=False
-        )
+        # Nasz mock zwraca string JSON, musimy go sparsować
+        analysis = json.loads(analysis_json_string)
+        alerts = analysis.get("alerts", "Błąd generowania alertów.")
+        tips = analysis.get("tips", "Błąd generowania wskazówek.")
+    except json.JSONDecodeError:
+        print("BŁĄD: Agent 5 nie zwrócił poprawnego JSONa.")
+        alerts = "Błąd serwera podczas generowania alertów."
+        tips = "Błąd serwera podczas generowania wskazówek."
+
+    # 3. Zwracamy finalny, połączony raport
+    return ReportResponse(
+        alerts=alerts,
+        tips=tips,
+        report_prawny=report_prawny,
+        report_polityczny=report_polityczny,
+        report_rynkowy=report_rynkowy
+    )
 
 @app.get("/")
 async def root():
-    """Root endpoint"""
-    return {
-        "message": "Hackathon Beszketnyky API",
-        "version": "1.0.0",
-        "docs": "/docs",
-        "health": "/health"
-    }
-
-# ====== FUNKCJE POMOCNICZE ======
-
-async def log_interaction(user_message: str, ai_response: str, thread_id: str, agent_type: str):
-    """Logowanie interakcji w tle"""
-    try:
-        logger.info("Interakcja z agentem",
-                   thread_id=thread_id,
-                   agent_type=agent_type,
-                   user_message_length=len(user_message),
-                   ai_response_length=len(ai_response))
-        # Tutaj można dodać zapis do bazy danych
-    except Exception as e:
-        logger.warning("Błąd logowania interakcji", error=str(e))
-
-async def check_database_connection() -> bool:
-    """Sprawdzenie połączenia z bazą danych"""
-    try:
-        from database.connection import get_database_session
-        async with get_database_session() as session:
-            await session.execute("SELECT 1")
-        return True
-    except Exception:
-        return False
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    return {"status": "Project Hyperion API Running"}

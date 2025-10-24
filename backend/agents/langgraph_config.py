@@ -2,6 +2,9 @@ import asyncio
 import time
 from trafilatura import extract
 
+from langgraph.graph import StatefulGraph, END
+from typing import Literal
+
 # Importowanie stanów i promptów (z Fazy 1)
 from .states import AgentState
 from .prompts import (
@@ -138,3 +141,74 @@ def rag_storage_node(state: AgentState) -> dict:
     return {}
 
 # TODO: W Fazie 3 połączymy te węzły w graf LangGraph
+
+
+
+# ... (tutaj znajdują się wszystkie nasze importy i funkcje agentów 
+#      z Fazy 2: gatekeeper_node, extractor_node, itd.)
+
+# --- KROK 1: Definicja Krawędzi Warunkowej ---
+
+def decide_after_gate(state: AgentState) -> Literal["continue", "end"]:
+    """
+    Router (Krawędź Warunkowa).
+    Sprawdza, czy Bramkarz przepuścił dane.
+    """
+    print("--- WĘZEŁ: Router (Decyzja po Bramkarzu) ---")
+    if state.is_relevant and not state.is_duplicate:
+        print("WYNIK: Kontynuuj przetwarzanie")
+        return "continue"
+    else:
+        print("WYNIK: Zakończ przepływ (Duplikat lub Nieistotny)")
+        return "end"
+
+# --- KROK 2: Budowa i Kompilacja Grafu ---
+
+def create_agent_graph() -> StatefulGraph:
+    """
+    Tworzy i kompiluje kompletny graf agentów.
+    """
+    print("Inicjalizuję graf agentów...")
+    
+    # Inicjalizujemy graf, podając mu nasz centralny stan
+    graph = StatefulGraph(AgentState)
+
+    # Dodajemy wszystkie nasze funkcje jako węzły do grafu
+    graph.add_node("bramkarz", gatekeeper_node)
+    graph.add_node("ekstraktor", extractor_node)
+    graph.add_node("zbieracze", parallel_summarizer_node)
+    graph.add_node("syntezator", category_synthesizer_node)
+    graph.add_node("archiwista_rag", rag_storage_node)
+
+    # --- Definiujemy przepływ (krawędzie) ---
+
+    # 1. Zaczynamy od Bramkarza
+    graph.set_entry_point("bramkarz")
+
+    # 2. Dodajemy krawędź warunkową (feedback mentora)
+    graph.add_conditional_edges(
+        "bramkarz",
+        decide_after_gate,
+        {
+            "continue": "ekstraktor",  # Jeśli relevant, idź do ekstraktora
+            "end": END                  # Jeśli nie, zakończ
+        }
+    )
+
+    # 3. Definiujemy resztę przepływu liniowo
+    graph.add_edge("ekstraktor", "zbieracze")
+    graph.add_edge("zbieracze", "syntezator")
+    graph.add_edge("syntezator", "archiwista_rag")
+    
+    # 4. Ostatni węzeł łączy się z końcem
+    graph.add_edge("archiwista_rag", END)
+
+    # 5. Kompilujemy graf
+    print("Kompilacja grafu zakończona.")
+    compiled_graph = graph.compile()
+    
+    return compiled_graph
+
+# Tworzymy jedną, globalną instancję naszego skompilowanego grafu
+# Aplikacja FastAPI będzie ją importować i używać.
+agent_graph_app = create_agent_graph()
