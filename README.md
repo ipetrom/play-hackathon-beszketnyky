@@ -64,6 +64,7 @@ play-hackathon-beszketnyky/
 ## 🤖 Architektura Multi-Agent
 
 ### Workflow LangGraph
+
 ```
 [Użytkownik] → [Supervisor Agent] → [Workforce Agent / Strategist Agent] → [Odpowiedź]
                      ↓                           ↓
@@ -73,58 +74,65 @@ play-hackathon-beszketnyky/
 
 ### Agenci
 
-#### 1. **Supervisor Agent** 
-- **Rola**: Router i koordynator
-- **Funkcja**: Analizuje zapytania i decyduje o routingu
-- **Logika routingu**:
-  - Słowa kluczowe strategiczne → Strategist Agent
-  - Zadania operacyjne → Workforce Agent  
-  - Długie/złożone zapytania → Strategist Agent
+#### 1. **Supervisor Agent**
+
+-   **Rola**: Router i koordynator
+-   **Funkcja**: Analizuje zapytania i decyduje o routingu
+-   **Logika routingu**:
+    -   Słowa kluczowe strategiczne → Strategist Agent
+    -   Zadania operacyjne → Workforce Agent
+    -   Długie/złożone zapytania → Strategist Agent
 
 #### 2. **Workforce Agent**
-- **Model**: Scaleway GenAI (Mistral)
-- **Przeznaczenie**: Szybkie wykonywanie prostych zadań
-- **Charakterystyka**: Wysoka prędkość, niższy koszt
-- **Przykłady**: Generowanie tekstu, tłumaczenia, proste analizy
 
-#### 3. **Strategist Agent**  
-- **Model**: OpenAI GPT-4o
-- **Przeznaczenie**: Głęboka analiza i zadania strategiczne
-- **Charakterystyka**: Wysoka jakość, złożone rozumowanie
-- **Przykłady**: Analizy biznesowe, planowanie, złożone problemy
+-   **Model**: Scaleway GenAI (Mistral)
+-   **Przeznaczenie**: Szybkie wykonywanie prostych zadań
+-   **Charakterystyka**: Wysoka prędkość, niższy koszt
+-   **Przykłady**: Generowanie tekstu, tłumaczenia, proste analizy
+
+#### 3. **Strategist Agent**
+
+-   **Model**: OpenAI GPT-4o
+-   **Przeznaczenie**: Głęboka analiza i zadania strategiczne
+-   **Charakterystyka**: Wysoka jakość, złożone rozumowanie
+-   **Przykłady**: Analizy biznesowe, planowanie, złożone problemy
 
 ## 🛠️ Stos Technologiczny
 
 ### Backend
-- **Framework**: FastAPI 0.115.0
-- **Orkiestracja AI**: LangGraph 0.2.55
-- **Baza danych**: PostgreSQL z pgvector
-- **AI Models**: 
-  - OpenAI GPT-4o (strategist)
-  - Scaleway GenAI Mistral (workforce)
-- **Storage**: Scaleway Object Storage
-- **Cache**: Redis
-- **ORM**: SQLAlchemy + asyncpg
 
-### Frontend  
-- **Framework**: React 18 + TypeScript
-- **Bundler**: Vite
-- **Styling**: TailwindCSS
-- **State Management**: Zustand
-- **HTTP Client**: Axios + React Query
+-   **Framework**: FastAPI 0.115.0
+-   **Orkiestracja AI**: LangGraph 0.2.55
+-   **Baza danych**: PostgreSQL z pgvector
+-   **AI Models**:
+    -   OpenAI GPT-4o (strategist)
+    -   Scaleway GenAI Mistral (workforce)
+-   **Storage**: Scaleway Object Storage
+-   **Cache**: Redis
+-   **ORM**: SQLAlchemy + asyncpg
+
+### Frontend
+
+-   **Framework**: React 18 + TypeScript
+-   **Bundler**: Vite
+-   **Styling**: TailwindCSS
+-   **State Management**: Zustand
+-   **HTTP Client**: Axios + React Query
 
 ### Infrastruktura
-- **Hosting**: Scaleway Serverless Containers
-- **Database**: Scaleway Managed PostgreSQL
-- **Storage**: Scaleway Object Storage  
-- **Containerization**: Docker + Docker Compose
+
+-   **Hosting**: Scaleway Serverless Containers
+-   **Database**: Scaleway Managed PostgreSQL
+-   **Storage**: Scaleway Object Storage
+-   **Containerization**: Docker + Docker Compose
 
 ## 🚀 Uruchomienie Projektu
 
 ### Wymagania
-- Docker & Docker Compose
-- Node.js 18+ (dla lokalnego developmentu frontend)
-- Python 3.11+ (dla lokalnego developmentu backend)
+
+-   Docker & Docker Compose
+-   Node.js 18+ (dla lokalnego developmentu frontend)
+-   Python 3.11+ (dla lokalnego developmentu backend)
 
 ### 1. Klonowanie i konfiguracja
 
@@ -140,6 +148,7 @@ cp frontend/.env.example frontend/.env
 ### 2. Konfiguracja zmiennych środowiskowych
 
 **Główny `.env`:**
+
 ```env
 # Database
 POSTGRES_DB=ai_platform
@@ -158,7 +167,7 @@ SCALEWAY_PROJECT_ID=your_project_id
 SCALEWAY_REGION=fr-par
 SCALEWAY_BUCKET_NAME=your_bucket_name
 
-# OpenAI Configuration  
+# OpenAI Configuration
 OPENAI_API_KEY=your_openai_api_key
 
 # Application
@@ -168,6 +177,7 @@ LOG_LEVEL=INFO
 ```
 
 **Frontend `.env`:**
+
 ```env
 VITE_API_BASE_URL=http://localhost:8000
 VITE_APP_NAME=AI Platform
@@ -192,6 +202,7 @@ docker-compose logs -f
 ### 4. Rozwój lokalny
 
 **Backend:**
+
 ```bash
 cd backend
 
@@ -209,6 +220,7 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 **Frontend:**
+
 ```bash
 cd frontend
 
@@ -222,12 +234,14 @@ npm run dev
 ## 📊 RAG (Retrieval-Augmented Generation)
 
 ### Funkcjonalności
-- **Embeddingi**: OpenAI text-embedding-ada-002
-- **Vector Search**: PostgreSQL pgvector
-- **Chunking**: Automatyczny podział dokumentów z overlappingiem
-- **Storage**: Scaleway Object Storage jako backup
+
+-   **Embeddingi**: OpenAI text-embedding-ada-002
+-   **Vector Search**: PostgreSQL pgvector
+-   **Chunking**: Automatyczny podział dokumentów z overlappingiem
+-   **Storage**: Scaleway Object Storage jako backup
 
 ### Użycie RAG
+
 ```python
 # Dodanie dokumentu do bazy wiedzy
 result = await rag_service.add_document(
@@ -252,6 +266,7 @@ results = await rag_service.search_similar_documents(
 ### Główne endpointy
 
 **Agent Chat:**
+
 ```http
 POST /agent
 Content-Type: application/json
@@ -263,25 +278,28 @@ Content-Type: application/json
 ```
 
 **Health Check:**
+
 ```http
 GET /health
 ```
 
 **RAG Management:**
+
 ```http
 POST /rag/documents
 GET /rag/search?query=...
 ```
 
 ### Odpowiedzi API
+
 ```json
 {
-  "success": true,
-  "response": "Odpowiedź agenta...",
-  "agent_used": "strategist",
-  "routing_reason": "Wykryto zapytanie strategiczne",
-  "rag_used": true,
-  "thread_id": "user-session-123"
+	"success": true,
+	"response": "Odpowiedź agenta...",
+	"agent_used": "strategist",
+	"routing_reason": "Wykryto zapytanie strategiczne",
+	"rag_used": true,
+	"thread_id": "user-session-123"
 }
 ```
 
@@ -347,6 +365,7 @@ CREATE TABLE agent_interactions (
 ## 🧪 Testowanie
 
 ### Backend Tests
+
 ```bash
 cd backend
 pytest tests/ -v
@@ -355,6 +374,7 @@ pytest tests/test_rag.py -v
 ```
 
 ### Frontend Tests
+
 ```bash
 cd frontend
 npm test
@@ -362,6 +382,7 @@ npm run test:coverage
 ```
 
 ### Integration Tests
+
 ```bash
 # Test pełnego workflow
 docker-compose exec backend pytest tests/integration/ -v
@@ -370,17 +391,20 @@ docker-compose exec backend pytest tests/integration/ -v
 ## 📈 Monitoring i Logi
 
 ### Structured Logging
-- **Framework**: structlog
-- **Format**: JSON dla production
-- **Poziomy**: DEBUG, INFO, WARNING, ERROR
+
+-   **Framework**: structlog
+-   **Format**: JSON dla production
+-   **Poziomy**: DEBUG, INFO, WARNING, ERROR
 
 ### Metryki
-- Response time agentów
-- Użycie tokenów AI
-- Accuracy RAG search
-- Error rates
+
+-   Response time agentów
+-   Użycie tokenów AI
+-   Accuracy RAG search
+-   Error rates
 
 ### Health Checks
+
 ```bash
 # Sprawdź status wszystkich komponentów
 curl http://localhost:8000/health
@@ -396,6 +420,7 @@ curl http://localhost:8000/health/database
 ### Scaleway Serverless Containers
 
 **Backend deployment:**
+
 ```bash
 # Build i push do registry
 docker build -t backend:latest ./backend
@@ -410,6 +435,7 @@ scw container container deploy \
 ```
 
 **Frontend deployment:**
+
 ```bash
 # Build static files
 cd frontend && npm run build
@@ -419,6 +445,7 @@ aws s3 sync dist/ s3://your-frontend-bucket --endpoint-url=https://s3.fr-par.scw
 ```
 
 ### Environment Variables for Production
+
 ```env
 ENVIRONMENT=production
 DEBUG=false
@@ -435,26 +462,30 @@ SCALEWAY_BUCKET_NAME=ai-platform-prod-storage
 ## 🔒 Bezpieczeństwo
 
 ### API Security
-- Rate limiting
-- CORS configuration
-- Input validation
-- SQL injection protection
+
+-   Rate limiting
+-   CORS configuration
+-   Input validation
+-   SQL injection protection
 
 ### Secrets Management
-- Scaleway Secret Manager
-- Environment variables
-- No hardcoded credentials
+
+-   Scaleway Secret Manager
+-   Environment variables
+-   No hardcoded credentials
 
 ### Database Security
-- SSL connections
-- Connection pooling
-- Prepared statements
+
+-   SSL connections
+-   Connection pooling
+-   Prepared statements
 
 ## 🐛 Debugging
 
 ### Common Issues
 
 **1. Import errors w Python:**
+
 ```bash
 # Sprawdź czy dependencies są zainstalowane
 pip list | grep langgraph
@@ -462,6 +493,7 @@ pip install -r requirements.txt
 ```
 
 **2. Database connection issues:**
+
 ```bash
 # Sprawdź status PostgreSQL
 docker-compose ps
@@ -472,6 +504,7 @@ psql -h localhost -U postgres -d ai_platform
 ```
 
 **3. Scaleway API errors:**
+
 ```bash
 # Sprawdź klucze API
 curl -H "X-Auth-Token: $SCALEWAY_SECRET_KEY" \
@@ -479,29 +512,32 @@ curl -H "X-Auth-Token: $SCALEWAY_SECRET_KEY" \
 ```
 
 ### Development Tips
-- Użyj `docker-compose logs -f service_name` dla real-time logs
-- Frontend proxy w Vite automatycznie przekierowuje API calls
-- Backend hot reload z `--reload` flag
-- PostgreSQL pgAdmin dostępny na porcie 5050
+
+-   Użyj `docker-compose logs -f service_name` dla real-time logs
+-   Frontend proxy w Vite automatycznie przekierowuje API calls
+-   Backend hot reload z `--reload` flag
+-   PostgreSQL pgAdmin dostępny na porcie 5050
 
 ## 📚 Dodatkowe Zasoby
 
-- [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
-- [Scaleway GenAI API](https://www.scaleway.com/en/developers/api/ai-inference/)
-- [OpenAI API Documentation](https://platform.openai.com/docs)
-- [pgvector Documentation](https://github.com/pgvector/pgvector)
-- [FastAPI Documentation](https://fastapi.tiangolo.com/)
+-   [LangGraph Documentation](https://langchain-ai.github.io/langgraph/)
+-   [Scaleway GenAI API](https://www.scaleway.com/en/developers/api/ai-inference/)
+-   [OpenAI API Documentation](https://platform.openai.com/docs)
+-   [pgvector Documentation](https://github.com/pgvector/pgvector)
+-   [FastAPI Documentation](https://fastapi.tiangolo.com/)
 
 ## 🤝 Rozwój
 
 ### Dodawanie nowego agenta
+
 1. Dodaj definicję w `agents/states.py`
-2. Stwórz prompt w `agents/prompts.py`  
+2. Stwórz prompt w `agents/prompts.py`
 3. Implementuj logikę w `agents/langgraph_config.py`
 4. Zaktualizuj routing w `should_continue()`
 5. Dodaj testy w `tests/test_agents.py`
 
 ### Dodawanie nowego serwisu
+
 1. Stwórz plik w `services/`
 2. Dodaj do `requirements.txt` jeśli potrzebne
 3. Zaktualizuj konfigurację w `utils/config.py`
@@ -513,10 +549,10 @@ curl -H "X-Auth-Token: $SCALEWAY_SECRET_KEY" \
 
 MIT License - zobacz [LICENSE](LICENSE) file for details.
 
-## 👥 Autorzy
+## 👥 Autorzy 🧌
 
-- **Zespół AI Platform** - Initial work
+-   **Zespół AI Platform** - Initial work
 
 ---
 
-*Dokumentacja została wygenerowana automatycznie na podstawie architektury projektu.*
+_Dokumentacja została wygenerowana automatycznie na podstawie architektury projektu._
