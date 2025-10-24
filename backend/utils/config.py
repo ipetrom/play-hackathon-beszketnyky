@@ -12,10 +12,10 @@ class Settings(BaseSettings):
 
     # Klucze API
     OPENAI_API_KEY: str = "brak_klucza_openai"
-    SCALEWAY_API_KEY: str = "brak_klucza_scaleway"
+    SCALEWAY_API_KEY: str = "a3c535e8-93ba-46bf-847e-7115853dcc0e"
 
     # URL dla API Scaleway (możesz je tu trzymać)
-    SCALEWAY_API_URL: str = "https://api.scaleway.com/genai/v1alpha1/regions/fr-par/chat/completions"
+    SCALEWAY_API_URL: str = "https://api.scaleway.ai/f515e043-422b-48bf-95a7-2da7063d7858/v1"
 
 # Tworzymy jedną, globalną instancję ustawień,
 # którą inne moduły będą mogły importować.

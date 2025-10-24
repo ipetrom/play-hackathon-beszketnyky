@@ -4,11 +4,20 @@ from typing import Any, Dict
 # Możesz tu zaimportować prawdziwą sesję z database/connection.py
 DbSession = Any 
 
+from typing import Any, Dict
+
+# Placeholder dla sesji bazy danych, np. SQLAlchemy Session
+# Możesz tu zaimportować prawdziwą sesję z database/connection.py
+DbSession = Any 
+
 # --- Definicje Kolekcji RAG ---
 RAG_COLLECTIONS = {
     "prawna": "rag_prawna",
+    "legal": "rag_prawna",
     "polityczna": "rag_polityczna",
-    "rynkowa": "rag_rynkowa"
+    "political": "rag_polityczna",
+    "rynkowa": "rag_rynkowa",
+    "market": "rag_rynkowa"
 }
 
 # Symulacja bazy danych (do deduplikacji)

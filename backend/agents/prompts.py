@@ -4,6 +4,22 @@ Prompts are parametrized using dictionaries based on content categories.
 Each prompt is extensively detailed to ensure high-quality, nuanced analysis.
 """
 
+# === Category Mapping ===
+# Maps Polish category names to English keys used in prompt dictionaries
+CATEGORY_MAPPING = {
+    "prawna": "legal",
+    "legal": "legal",
+    "polityczna": "political",
+    "political": "political",
+    "rynkowa": "market",
+    "market": "market",
+}
+
+def normalize_category(category: str) -> str:
+    """Convert any category format (Polish or English) to standardized English key."""
+    normalized = CATEGORY_MAPPING.get(category.lower(), "market")
+    return normalized
+
 # === Agent 1 (Gatekeeper) ===
 # Comprehensive filtering prompt to eliminate noise and ensure relevance
 GATEKEEPER_PROMPT = """

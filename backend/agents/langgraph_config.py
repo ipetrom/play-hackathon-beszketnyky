@@ -11,7 +11,8 @@ from .prompts import (
     GATEKEEPER_PROMPT,
     WRITER_PROMPTS,
     PERPLEXITY_QUERIES,
-    SYNTHESIZER_PROMPTS
+    SYNTHESIZER_PROMPTS,
+    normalize_category
 )
 
 # Importowanie (zamockowanych) serwisów
@@ -24,28 +25,38 @@ db_session_mock = None
 
 def gatekeeper_node(state: AgentState) -> dict:
     """
-    Agent 1: Bramkarz.
+    Agent 1: Bramkarz. (Wersja 2.0 - Odporna na błędy)
     Sprawdza duplikaty i filtruje szum (relewantność).
     """
     print("--- WĘZEŁ: Agent 1 (Bramkarz) ---")
-    
-    # 1. Sprawdzenie duplikatów (Feedback Mentora)
+
+    # 1. Sprawdzenie duplikatów
     if rag_service.check_if_url_exists(state.source_url, db_session_mock):
         print(f"WYNIK: Odrzucono (Duplikat): {state.source_url}")
         return {"is_duplicate": True, "is_relevant": False}
 
-    # 2. Sprawdzenie relewantności (Feedback Mentora)
+    # 2. Sprawdzenie relewantności
     prompt = GATEKEEPER_PROMPT.format(raw_content=state.raw_content)
     response = llm_clients.invoke_fast_model(prompt)
-    
+
+    # --- NOWA, POPRAWIONA LOGIKA ---
+    # A. Sprawdź, czy w ogóle mamy błąd z API
+    if "Błąd serwera" in response or "BŁĄD KRYTYCZNY" in response:
+        print(f"WYNIK: Odrzucono (Błąd LLM): {state.source_url}")
+        # Zwracamy błąd i oznaczamy jako nieistotny
+        return {"is_relevant": False, "error_message": response}
+
+    # B. Dopiero teraz sprawdzamy treść merytoryczną
     is_relevant = "TAK" in response.strip().upper()
-    
+
     if not is_relevant:
         print(f"WYNIK: Odrzucono (Nieistotny): {state.source_url}")
-        return {"is_duplicate": False, "is_relevant": False}
+        return {"is_relevant": False}
 
     print(f"WYNIK: Zaakceptowano: {state.source_url}")
-    return {"is_duplicate": False, "is_relevant": True}
+    # is_duplicate jest już False (sprawdzone na górze)
+    return {"is_relevant": True}
+
 
 def extractor_node(state: AgentState) -> dict:
     """
@@ -62,36 +73,27 @@ def extractor_node(state: AgentState) -> dict:
         
     return {"clean_text": clean_text}
 
-async def parallel_summarizer_node(state: AgentState) -> dict:
+def parallel_summarizer_node(state: AgentState) -> dict:
     """
     Agent 2 (Równoległy): Zbieracze.
-    Asynchronicznie uruchamia Agenta 3 (Writer) i Agenta X (Perplexity).
+    Uruchamia Agenta 3 (Writer) i Agenta X (Perplexity) sekwencyjnie.
     """
     print("--- WĘZEŁ: Agent 2 (Zbieracze Równolegli) ---")
     
     # Pobranie odpowiednich promptów/zapytań dla danej kategorii
-    category = state.category
+    category = normalize_category(state.category)
     writer_prompt = WRITER_PROMPTS[category].format(clean_text=state.clean_text)
     perplexity_query = PERPLEXITY_QUERIES[category]
 
-    # Definicja zadań asynchronicznych
-    async def task_writer():
-        print("ROZPOCZYNAM: Agent 3 (Writer)")
-        summary = llm_clients.invoke_fast_model(writer_prompt) # Używamy szybkiego modelu
-        print("ZAKOŃCZONO: Agent 3 (Writer)")
-        return summary
+    # Uruchamiamy Writer
+    print("ROZPOCZYNAM: Agent 3 (Writer)")
+    writer_summary = llm_clients.invoke_fast_model(writer_prompt)
+    print("ZAKOŃCZONO: Agent 3 (Writer)")
 
-    async def task_perplexity():
-        print("ROZPOCZYNAM: Agent X (Perplexity)")
-        summary = perplexity_service.search_perplexity(perplexity_query)
-        print("ZAKOŃCZONO: Agent X (Perplexity)")
-        return summary
-
-    # Uruchomienie obu zadań równolegle
-    writer_summary, perplexity_summary = await asyncio.gather(
-        task_writer(),
-        task_perplexity()
-    )
+    # Uruchamiamy Perplexity
+    print("ROZPOCZYNAM: Agent X (Perplexity)")
+    perplexity_summary = perplexity_service.search_perplexity(perplexity_query)
+    print("ZAKOŃCZONO: Agent X (Perplexity)")
 
     return {
         "writer_summary": writer_summary,
@@ -100,12 +102,11 @@ async def parallel_summarizer_node(state: AgentState) -> dict:
 
 def category_synthesizer_node(state: AgentState) -> dict:
     """
-    Agent 3 (Syntezator Kategorii):
-    Łączy wyniki od Writera i Perplexity w jeden raport dla danej kategorii.
+    Agent 3 (Syntezator): Konsoliduje wyniki Writer + Perplexity w raport kategorii.
     """
-    print(f"--- WĘZEŁ: Agent 3 (Syntezator) dla kategorii: {state.category} ---")
+    print(f"--- WĘZEŁ: Agent 3 (Syntezator Kategorii) dla kategorii: {state.category} ---")
     
-    category = state.category
+    category = normalize_category(state.category)
     prompt = SYNTHESIZER_PROMPTS[category].format(
         writer_summary=state.writer_summary,
         perplexity_summary=state.perplexity_summary
@@ -123,7 +124,8 @@ def rag_storage_node(state: AgentState) -> dict:
     """
     print(f"--- WĘZEŁ: Agent 4 (Archiwista RAG) dla kategorii: {state.category} ---")
     
-    collection_name = rag_service.RAG_COLLECTIONS[state.category]
+    category = normalize_category(state.category)
+    collection_name = rag_service.RAG_COLLECTIONS[category]
     metadata = {
         "source_url": state.source_url,
         "category": state.category,
