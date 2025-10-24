@@ -72,3 +72,9 @@ pypdf==3.17.0
 
 # Web scraping and content extraction
 trafilatura==1.6.6
+
+
+#--------
+openai
+pydantic-settings
+requests

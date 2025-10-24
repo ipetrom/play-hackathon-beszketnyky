@@ -4,11 +4,11 @@ from pydantic import BaseModel
 from typing import List
 
 # Importowanie naszego skompilowanego grafu
-from agents.langgraph_config import agent_graph_app
+from .agents.langgraph_config import agent_graph_app
 
 # Importowanie naszych (zamockowanych) serwisów i promptów
-from services import rag_service, llm_clients
-from agents.prompts import FINAL_TIPS_ALERTS_PROMPT, PERPLEXITY_QUERIES
+from .services import rag_service, llm_clients
+from .agents.prompts import FINAL_TIPS_ALERTS_PROMPT, PERPLEXITY_QUERIES
 
 # Inicjalizacja aplikacji FastAPI
 app = FastAPI(

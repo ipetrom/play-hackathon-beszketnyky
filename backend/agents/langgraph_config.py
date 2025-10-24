@@ -2,7 +2,7 @@ import asyncio
 import time
 from trafilatura import extract
 
-from langgraph.graph import StatefulGraph, END
+from langgraph.graph import StateGraph, END
 from typing import Literal
 
 # Importowanie stanów i promptów (z Fazy 1)
@@ -164,14 +164,14 @@ def decide_after_gate(state: AgentState) -> Literal["continue", "end"]:
 
 # --- KROK 2: Budowa i Kompilacja Grafu ---
 
-def create_agent_graph() -> StatefulGraph:
+def create_agent_graph() -> StateGraph:
     """
     Tworzy i kompiluje kompletny graf agentów.
     """
     print("Inicjalizuję graf agentów...")
     
     # Inicjalizujemy graf, podając mu nasz centralny stan
-    graph = StatefulGraph(AgentState)
+    graph = StateGraph(AgentState)
 
     # Dodajemy wszystkie nasze funkcje jako węzły do grafu
     graph.add_node("bramkarz", gatekeeper_node)
