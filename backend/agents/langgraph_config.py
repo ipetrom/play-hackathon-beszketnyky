@@ -1,4 +1,5 @@
 import asyncio
+import time
 from trafilatura import extract
 
 # Importowanie stanów i promptów (z Fazy 1)
