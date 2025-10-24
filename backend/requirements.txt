@@ -69,3 +69,6 @@ botocore==1.34.0
 # Additional ML and vector operations
 sentence-transformers==2.2.2
 pypdf==3.17.0
+
+# Web scraping and content extraction
+trafilatura==1.6.6

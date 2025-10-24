@@ -1,5 +1,8 @@
 # Placeholder dla klienta bazy wektorowej, np. z biblioteki 'pgvector.sqlalchemy'
 # lub 'langchain_community.vectorstores.pgvector'
+from typing import Optional, Dict, Any
+
+
 VectorStoreClient = Any 
 
 # Placeholder dla sesji bazy danych, np. SQLAlchemy Session
