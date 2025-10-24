@@ -1,99 +1,100 @@
-version: '3.8'
+# version: '3.8'
 
 services:
-  # ====== BACKEND ======
-  backend:
-    build: 
-      context: ./backend
-      dockerfile: Dockerfile
-    ports:
-      - "8000:8000"
-    environment:
-      - ENVIRONMENT=development
-      - POSTGRES_HOST=postgres
-      - POSTGRES_DB=${POSTGRES_DB_LOCAL}
-      - POSTGRES_USER=${POSTGRES_USER_LOCAL}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_LOCAL}
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - SCALEWAY_API_KEY=${SCALEWAY_API_KEY}
-      - SCALEWAY_PROJECT_ID=${SCALEWAY_PROJECT_ID}
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - ./backend:/app
-    networks:
-      - hackathon-network
+  # # ====== BACKEND ======
+  # backend:
+  #   build: 
+  #     context: ./backend
+  #     dockerfile: Dockerfile
+  #   ports:
+  #     - "8000:8000"
+  #   environment:
+  #     - ENVIRONMENT=development
+  #     - POSTGRES_HOST=postgres
+  #     - POSTGRES_DB=${POSTGRES_DB_LOCAL}
+  #     - POSTGRES_USER=${POSTGRES_USER_LOCAL}
+  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_LOCAL}
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #     - SCALEWAY_API_KEY=${SCALEWAY_API_KEY}
+  #     - SCALEWAY_PROJECT_ID=${SCALEWAY_PROJECT_ID}
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   volumes:
+  #     - ./backend:/app
+  #   networks:
+  #     - hackathon-network
 
-  # ====== FRONTEND ======
+  # # ====== FRONTEND ======
   frontend:
     build:
       context: ./frontend
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.dev
     ports:
-      - "3000:3000"
+      - "5173:5173"
     environment:
       - REACT_APP_API_URL=http://localhost:8000
-    depends_on:
-      - backend
+      - CHOKIDAR_USEPOLLING=true
+    # depends_on:
+    #   - backend
     volumes:
       - ./frontend:/app
       - /app/node_modules
     networks:
       - hackathon-network
 
-  # ====== DATABASES ======
-  postgres:
-    image: pgvector/pgvector:pg16
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB_LOCAL}
-      POSTGRES_USER: ${POSTGRES_USER_LOCAL}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_LOCAL}
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_LOCAL} -d ${POSTGRES_DB_LOCAL}"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - hackathon-network
+#   # ====== DATABASES ======
+#   postgres:
+#     image: pgvector/pgvector:pg16
+#     environment:
+#       POSTGRES_DB: ${POSTGRES_DB_LOCAL}
+#       POSTGRES_USER: ${POSTGRES_USER_LOCAL}
+#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_LOCAL}
+#     ports:
+#       - "5432:5432"
+#     volumes:
+#       - postgres_data:/var/lib/postgresql/data
+#       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+#     healthcheck:
+#       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_LOCAL} -d ${POSTGRES_DB_LOCAL}"]
+#       interval: 5s
+#       timeout: 5s
+#       retries: 5
+#     networks:
+#       - hackathon-network
 
-  redis:
-    image: redis:7-alpine
-    ports:
-      - "6379:6379"
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    networks:
-      - hackathon-network
+#   redis:
+#     image: redis:7-alpine
+#     ports:
+#       - "6379:6379"
+#     volumes:
+#       - redis_data:/data
+#     healthcheck:
+#       test: ["CMD", "redis-cli", "ping"]
+#       interval: 5s
+#       timeout: 3s
+#       retries: 5
+#     networks:
+#       - hackathon-network
 
-  # ====== DEVELOPMENT TOOLS ======
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@hackathon.local
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-    networks:
-      - hackathon-network
+#   # ====== DEVELOPMENT TOOLS ======
+#   pgadmin:
+#     image: dpage/pgadmin4:latest
+#     environment:
+#       PGADMIN_DEFAULT_EMAIL: admin@hackathon.local
+#       PGADMIN_DEFAULT_PASSWORD: admin
+#     ports:
+#       - "5050:80"
+#     depends_on:
+#       - postgres
+#     networks:
+#       - hackathon-network
 
-volumes:
-  postgres_data:
-  redis_data:
+# volumes:
+#   postgres_data:
+#   redis_data:
 
 networks:
   hackathon-network:

@@ -1,25 +1,17 @@
-FROM node:18-alpine
-
-# Ustaw katalog roboczy
+FROM node:23-alpine AS build
 WORKDIR /app
-
-# Skopiuj package.json i package-lock.json (jeśli istnieje)
 COPY package*.json ./
+RUN npm ci
 
-# Zainstaluj zależności
-RUN npm ci --only=production
-
-# Skopiuj kod aplikacji
 COPY . .
 
-# Zbuduj aplikację
+ARG VITE_API_URL
+ENV VITE_API_URL $VITE_API_URL
+
 RUN npm run build
 
-# Expose port
-EXPOSE 3000
-
-# Ustaw zmienne środowiskowe
-ENV NODE_ENV=production
-
-# Komenda startowa
-CMD ["npm", "run", "preview"]
+FROM nginx:alpine
+COPY --from=build /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/nginx.conf
+EXPOSE 80
+CMD ["nginx", "-g", "daemon off;"]
