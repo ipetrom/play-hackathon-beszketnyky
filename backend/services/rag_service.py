@@ -1,51 +1,53 @@
-# Placeholder dla klienta bazy wektorowej, np. z biblioteki 'pgvector.sqlalchemy'
-# lub 'langchain_community.vectorstores.pgvector'
-from typing import Optional, Dict, Any
-
-
-VectorStoreClient = Any 
+from typing import Any, Dict
 
 # Placeholder dla sesji bazy danych, np. SQLAlchemy Session
+# Możesz tu zaimportować prawdziwą sesję z database/connection.py
 DbSession = Any 
 
 # --- Definicje Kolekcji RAG ---
-# Definiujemy nazwy naszych odizolowanych "szufladek" w bazie wektorowej
 RAG_COLLECTIONS = {
     "prawna": "rag_prawna",
     "polityczna": "rag_polityczna",
     "rynkowa": "rag_rynkowa"
 }
 
-def get_vector_store_client() -> VectorStoreClient:
-    """Inicjalizuje i zwraca klienta bazy wektorowej."""
-    # TODO: Implementacja połączenia z pgvector
-    print("TODO: Połączono z klientem wektorowym")
-    return None
+# Symulacja bazy danych (do deduplikacji)
+_processed_urls = set()
 
 def check_if_url_exists(url: str, db: DbSession) -> bool:
     """
-    Sprawdza, czy dany URL był już przetwarzany i zapisany w *jakiejkolwiek*
-    kolekcji, aby uniknąć duplikatów.
+    Sprawdza, czy dany URL był już przetwarzany.
+    Używa mocka (set), ale powinien docelowo pytać bazy danych.
     """
-    # TODO: Implementacja logiki sprawdzania duplikatów (np. w tabeli SQL)
-    print(f"TODO: Sprawdzam, czy URL {url} istnieje w bazie...")
-    # Na czas testów zakładamy, że nic nie istnieje
+    print(f"--- SERWIS RAG: Sprawdzam duplikat dla: {url} ---")
+    if url in _processed_urls:
+        print("MOCK: Znaleziono duplikat.")
+        return True
+    print("MOCK: URL jest nowy.")
     return False
 
-def save_report_to_rag(report: str, metadata: dict, collection_name: str, db: DbSession, client: VectorStoreClient):
+def save_report_to_rag(report: str, metadata: dict, collection_name: str, db: DbSession):
     """
-    Zapisuje finalny raport (embedding) do odpowiedniej kolekcji w pgvector
-    oraz zapisuje metadane (np. URL) w tabeli SQL.
+    Zapisuje finalny raport do odpowiedniej kolekcji RAG.
     """
-    # TODO: Implementacja zapisu do pgvector i tabeli SQL
-    print(f"TODO: Zapisuję raport do kolekcji {collection_name} z metadanymi {metadata}")
+    # Zapisz URL do mocka, aby deduplikacja działała w kolejnych uruchomieniach
+    if "source_url" in metadata:
+        _processed_urls.add(metadata["source_url"])
+        
+    print(f"--- SERWIS RAG: Zapisuję raport do kolekcji {collection_name} ---")
+    print(f"METADANE: {metadata}")
+    print(f"RAPORT: {report[:100]}...")
     pass
 
-def query_rag_collection(query: str, collection_name: str, client: VectorStoreClient) -> str:
+def query_rag_collection(query: str, collection_name: str) -> str:
     """
-    Wykonuje zapytanie RAG (semantic search) do *konkretnej* kolekcji wektorowej
-    i zwraca odpowiedź (prawdopodobnie po syntezie przez LLM).
+    Wykonuje zapytanie RAG do *konkretnej* kolekcji.
     """
-    # TODO: Implementacja logiki RAG (search + LLM prompt)
-    print(f"TODO: Pytam kolekcję {collection_name} o: '{query}'")
-    return f"To jest przykładowa odpowiedź z kolekcji {collection_name} na pytanie: {query}"
+    print(f"--- SERWIS RAG: Pytam kolekcję {collection_name} ---")
+    print(f"ZAPYTANIE: {query}")
+    
+    # Symulacja odpowiedzi RAG
+    if "Podsumuj" in query:
+        return f"[PRZYKŁADOWY RAPORT Z {collection_name.upper()}]\n- Nastąpiła zmiana X\n- Konkurencja zrobiła Y"
+    
+    return f"To jest odpowiedź z RAG dla kolekcji {collection_name} na pytanie: {query}"
