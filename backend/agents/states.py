@@ -35,5 +35,3 @@ class AgentState(BaseModel):
     class Config:
         # Pozwala na elastyczne zarządzanie typami w LangGraph
         arbitrary_types_allowed = True
-
-
