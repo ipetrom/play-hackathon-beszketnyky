@@ -75,6 +75,7 @@ async def ingest_article(request: IngestRequest, background_tasks: BackgroundTas
     return {"message": "Zlecenie przyjęte do przetwarzania."}
 
 
+# TODO: MAKE LATER CHATBOT
 @app.post("/api/v1/ask", response_model=AskResponse)
 async def ask_rag_chatbot(request: AskRequest):
     """
