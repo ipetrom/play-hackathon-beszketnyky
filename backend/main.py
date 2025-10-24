@@ -64,13 +64,13 @@ async def ingest_article(request: IngestRequest, background_tasks: BackgroundTas
     # Uruchamiamy graf w tle (kluczowe dla hackathonu!)
     # Scraper nie musi czekać na zakończenie analizy (30+ sekund)
     background_tasks.add_task(
-        agent_graph_app.invoke,
-        {
-            "category": request.category,
-            "source_url": request.source_url,
-            "raw_content": request.raw_content
-        }
-    )
+    agent_graph_app.ainvoke, # <--- POPRAWKA
+    {
+        "category": request.category,
+        "source_url": request.source_url,
+        "raw_content": request.raw_content
+    }
+    )       
     
     return {"message": "Zlecenie przyjęte do przetwarzania."}
 
