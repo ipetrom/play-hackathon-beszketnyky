@@ -113,7 +113,7 @@ checkpoints/
 
 # ====== Documentation ======
 site/
-scrappers/
+scrappers/scrapped_data/
 
 # ====== Scaleway specific ======
 scaleway-config.json
