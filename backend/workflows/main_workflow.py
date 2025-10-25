@@ -1,105 +1,130 @@
 """
-Main Workflow Orchestrator
-Integrates telecom news scraper with agents and object storage
+Main Workflow for Smart Tracker
+Integrates all agents and handles object storage
 """
 
 import asyncio
-import json
 import logging
-from datetime import datetime, date
 from typing import Dict, Any, List, Optional
+from datetime import datetime, date
+import json
 import os
-import sys
 
-# Add backend to path
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from services.database_simple import create_report, get_user
-from services.objest_storage import upload_file, download_file
+from agents.workflow import TelecomWorkflow
 from agents.final_summarizer_agent import final_summarizer_agent
 from agents.tips_alerts_generator import tips_alerts_generator
-from agents.workflow import TelecomWorkflow
-
-# Import the scraper
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'scrappers', 'serper'))
-try:
-    from telecom_news_scraper import TelecomNewsScraper
-except ImportError:
-    # Fallback if scraper is not available
-    class TelecomNewsScraper:
-        def __init__(self, api_key):
-            self.api_key = api_key
-        
-        async def scrape_all_news(self, days_back=7):
-            return {
-                "prawo": [],
-                "polityka": [],
-                "financial": [],
-                "scraped_at": datetime.now().isoformat(),
-                "total_articles": 0
-            }
+from services.database_simple import create_report, get_user
+from services.objest_storage import upload_file, download_file
+from services.http_client import PerplexityClient
 
 logger = logging.getLogger(__name__)
 
-class MainWorkflowOrchestrator:
-    """Main workflow orchestrator for Smart Tracker"""
+class MainWorkflow:
+    """Main workflow orchestrating all agents and object storage"""
     
     def __init__(self):
-        self.scraper = None
-        self.workflow = TelecomWorkflow()
-        
+        self.telecom_workflow = TelecomWorkflow()
+        self.perplexity_client = PerplexityClient()
+        self.domains = ["prawo", "polityka", "financial"]
+    
     async def run_complete_workflow(self, user_email: str, days_back: int = 7) -> Dict[str, Any]:
         """
-        Run the complete workflow:
-        1. Scrape telecom news
-        2. Process through agents
-        3. Generate final reports
-        4. Store in object storage
-        5. Save paths to database
+        Run the complete workflow for a user
+        
+        Args:
+            user_email: User email
+            days_back: Number of days to look back
+            
+        Returns:
+            Workflow result with file paths
         """
         try:
             logger.info(f"Starting complete workflow for user: {user_email}")
             
-            # Step 1: Scrape telecom news
-            logger.info("Step 1: Scraping telecom news...")
-            news_data = await self._scrape_telecom_news(days_back)
+            # Check if user exists
+            user = get_user(user_email)
+            if not user:
+                return {"status": "error", "message": "User not found"}
             
-            if not news_data or news_data.get("total_articles", 0) == 0:
-                logger.warning("No news articles found")
-                return {
-                    "status": "warning",
-                    "message": "No news articles found for the specified period",
-                    "user_email": user_email
-                }
+            # Create storage directory for this user
+            user_storage_dir = f"{user_email}/reports/{date.today().strftime('%Y-%m-%d')}"
             
-            # Step 2: Process through agents for each domain
-            logger.info("Step 2: Processing through agents...")
+            # Step 1: Run telecom workflow for each domain
             domain_reports = {}
+            writer_reports = {}
+            perplexity_reports = {}
             
-            for domain in ["prawo", "polityka", "financial"]:
-                domain_articles = news_data.get(domain, [])
-                if domain_articles:
-                    logger.info(f"Processing {len(domain_articles)} articles for domain: {domain}")
-                    domain_report = await self._process_domain_articles(domain, domain_articles)
-                    domain_reports[domain] = domain_report
-                else:
-                    logger.info(f"No articles found for domain: {domain}")
+            for domain in self.domains:
+                logger.info(f"Processing domain: {domain}")
+                
+                # Try telecom workflow first
+                try:
+                    workflow_result = await self.telecom_workflow.run_domain_workflow(domain)
+                    
+                    if workflow_result.get("status") == "success":
+                        # Store the raw workflow result
+                        domain_reports[domain] = workflow_result
+                        
+                        # Try to get writer report
+                        writer_outputs = workflow_result.get("writer_outputs", [])
+                        if writer_outputs:
+                            # Use writer agent
+                            from agents.writer_agent import writer_agent
+                            writer_report = await writer_agent.aggregate_domain(writer_outputs, domain)
+                            writer_reports[domain] = writer_report
+                        else:
+                            logger.warning(f"No writer outputs for domain: {domain}")
+                            writer_reports[domain] = None
+                    else:
+                        logger.warning(f"Workflow failed for domain: {domain}")
+                        domain_reports[domain] = None
+                        writer_reports[domain] = None
+                        
+                except Exception as e:
+                    logger.error(f"Workflow error for domain {domain}: {e}")
                     domain_reports[domain] = None
+                    writer_reports[domain] = None
+                
+                # Always get Perplexity report as fallback/enhancement
+                try:
+                    perplexity_query = self._get_perplexity_query(domain)
+                    perplexity_result = await self.perplexity_client.summarize(perplexity_query, domain)
+                    perplexity_reports[domain] = self._format_perplexity_result(perplexity_result, domain)
+                except Exception as e:
+                    logger.error(f"Perplexity error for domain {domain}: {e}")
+                    perplexity_reports[domain] = None
+            
+            # Step 2: Run final summarizer for each domain
+            final_reports = {}
+            for domain in self.domains:
+                try:
+                    writer_report = writer_reports.get(domain)
+                    perplexity_report = perplexity_reports.get(domain)
+                    
+                    final_report = await final_summarizer_agent.synthesize_domain_report(
+                        writer_report, perplexity_report, domain
+                    )
+                    final_reports[domain] = final_report
+                    
+                except Exception as e:
+                    logger.error(f"Final summarizer error for domain {domain}: {e}")
+                    final_reports[domain] = None
             
             # Step 3: Generate tips and alerts
-            logger.info("Step 3: Generating tips and alerts...")
-            tips_alerts = await self._generate_tips_alerts(domain_reports)
+            try:
+                tips_alerts = await tips_alerts_generator.generate_tips_alerts(final_reports)
+            except Exception as e:
+                logger.error(f"Tips and alerts generation failed: {e}")
+                tips_alerts = {"tips": [], "alerts": []}
             
             # Step 4: Store files in object storage
-            logger.info("Step 4: Storing files in object storage...")
             storage_paths = await self._store_files_in_object_storage(
-                user_email, news_data, domain_reports, tips_alerts
+                user_storage_dir, final_reports, tips_alerts
             )
             
             # Step 5: Create database report
-            logger.info("Step 5: Creating database report...")
             report_result = await self._create_database_report(
-                user_email, storage_paths, tips_alerts
+                user_email, final_reports, tips_alerts, storage_paths
             )
             
             logger.info(f"Complete workflow finished for user: {user_email}")
@@ -108,221 +133,187 @@ class MainWorkflowOrchestrator:
                 "user_email": user_email,
                 "report_id": report_result.get("report_id"),
                 "storage_paths": storage_paths,
-                "articles_processed": news_data.get("total_articles", 0),
-                "domains_processed": len([d for d in domain_reports.values() if d is not None])
+                "domains_processed": list(final_reports.keys()),
+                "timestamp": datetime.utcnow().isoformat()
             }
             
         except Exception as e:
-            logger.error(f"Workflow failed: {e}")
+            logger.error(f"Complete workflow failed: {e}")
+            return {"status": "error", "message": str(e)}
+    
+    def _get_perplexity_query(self, domain: str) -> str:
+        """Get Perplexity query for domain"""
+        queries = {
+            "prawo": [
+                "Poland telecommunications law regulation UKE UOKiK last week",
+                "Polish telecom legal changes UKE decisions recent",
+                "Poland telecom regulatory updates UOKiK competition last week",
+                "UKE spectrum allocation decisions Polish telecom recent",
+                "Poland telecom law changes EU directives last week"
+            ],
+            "polityka": [
+                "Poland telecom policy government announcements last week",
+                "Polish telecom ministry digital policy recent changes",
+                "Poland 5G strategy government telecom recent updates",
+                "Polish telecom infrastructure policy EU funding last week",
+                "Poland telecom competition policy government recent"
+            ],
+            "financial": [
+                "Poland telecom market financial results last week",
+                "Polish telecom operators earnings revenue recent",
+                "Poland telecom market stock prices recent changes",
+                "telecom investment Poland infrastructure funding last week",
+                "Polish telecom market financial outlook recent"
+            ]
+        }
+        
+        domain_queries = queries.get(domain, [])
+        return " ".join(domain_queries[:3])  # Use first 3 queries
+    
+    def _format_perplexity_result(self, result: Dict[str, Any], domain: str) -> Dict[str, Any]:
+        """Format Perplexity result"""
+        try:
+            content = result.get("choices", [{}])[0].get("message", {}).get("content", "")
+            
             return {
-                "status": "error",
-                "message": str(e),
-                "user_email": user_email
-            }
-    
-    async def _scrape_telecom_news(self, days_back: int) -> Dict[str, Any]:
-        """Scrape telecom news using the scraper"""
-        try:
-            # Get API key from environment
-            serper_api_key = os.getenv("SERPER_API_KEY")
-            if not serper_api_key:
-                raise ValueError("SERPER_API_KEY environment variable not set")
-            
-            scraper = TelecomNewsScraper(serper_api_key)
-            news_data = await scraper.scrape_all_news(days_back=days_back)
-            
-            logger.info(f"Scraped {news_data.get('total_articles', 0)} articles")
-            return news_data
-            
-        except Exception as e:
-            logger.error(f"News scraping failed: {e}")
-            return {}
-    
-    async def _process_domain_articles(self, domain: str, articles: List[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
-        """Process articles for a specific domain through agents"""
-        try:
-            # For now, create a simple domain report from articles
-            # In the future, this can be enhanced with full agent processing
-            domain_report = {
                 "domain": domain,
+                "content": content,
+                "key_points": self._extract_key_points(content),
+                "entities": self._extract_entities(content),
+                "impact_assessment": {
+                    "impact_level": "medium",
+                    "affected_parties": ["All telecom stakeholders"],
+                    "time_horizon": "short-term"
+                },
+                "confidence": "medium",
                 "generated_at": datetime.utcnow().isoformat(),
-                "synthesis": f"# {domain.title()} Domain Report\n\nProcessed {len(articles)} articles for {domain} domain.\n\n## Key Articles\n" + 
-                           "\n".join([f"- {article.get('title', 'No title')}" for article in articles[:5]]),
-                "sources_count": len(articles),
                 "status": "success"
             }
-            
-            logger.info(f"Created domain report for {domain} with {len(articles)} articles")
-            return domain_report
-                
         except Exception as e:
-            logger.error(f"Domain processing failed for {domain}: {e}")
-            return None
-    
-    async def _generate_tips_alerts(self, domain_reports: Dict[str, Any]) -> Dict[str, Any]:
-        """Generate tips and alerts from domain reports"""
-        try:
-            # Filter out None values
-            valid_reports = {k: v for k, v in domain_reports.items() if v is not None}
-            
-            if not valid_reports:
-                logger.warning("No valid domain reports for tips/alerts generation")
-                return {
-                    "tips": ["Monitor telecom developments", "Review regulatory changes", "Assess market trends"],
-                    "alerts": [{"alert": "Limited data available", "alert_level": 2}]
-                }
-            
-            # Generate tips and alerts
-            tips_alerts = await tips_alerts_generator.generate_tips_alerts(valid_reports)
-            
-            return tips_alerts
-            
-        except Exception as e:
-            logger.error(f"Tips/alerts generation failed: {e}")
+            logger.error(f"Error formatting Perplexity result: {e}")
             return {
-                "tips": ["Monitor telecom developments", "Review regulatory changes", "Assess market trends"],
-                "alerts": [{"alert": "Tips/alerts generation failed", "alert_level": 3}]
+                "domain": domain,
+                "content": f"No Perplexity data available for {domain}",
+                "key_points": [],
+                "entities": {},
+                "impact_assessment": {"impact_level": "low"},
+                "confidence": "low",
+                "generated_at": datetime.utcnow().isoformat(),
+                "status": "error"
             }
     
-    async def _store_files_in_object_storage(self, user_email: str, news_data: Dict[str, Any], 
-                                           domain_reports: Dict[str, Any], tips_alerts: Dict[str, Any]) -> Dict[str, str]:
+    def _extract_key_points(self, content: str) -> List[str]:
+        """Extract key points from content"""
+        # Simple extraction - in production, use more sophisticated NLP
+        lines = content.split('\n')
+        key_points = []
+        for line in lines:
+            line = line.strip()
+            if line and (line.startswith('-') or line.startswith('•') or line.startswith('*')):
+                key_points.append(line)
+        return key_points[:5]  # Limit to 5 key points
+    
+    def _extract_entities(self, content: str) -> Dict[str, List[str]]:
+        """Extract entities from content"""
+        # Simple extraction - in production, use NER
+        entities = {
+            "organizations": [],
+            "people": [],
+            "locations": []
+        }
+        
+        # Look for common telecom entities
+        telecom_orgs = ["UKE", "UOKiK", "Play", "Orange", "T-Mobile", "Plus", "KRRiT"]
+        for org in telecom_orgs:
+            if org in content:
+                entities["organizations"].append(org)
+        
+        return entities
+    
+    async def _store_files_in_object_storage(self, user_storage_dir: str, 
+                                           final_reports: Dict[str, Any], 
+                                           tips_alerts: Dict[str, Any]) -> Dict[str, str]:
         """Store files in object storage and return paths"""
+        storage_paths = {}
+        
         try:
-            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            user_folder = f"{user_email}/reports/{timestamp}"
+            # Store tips and alerts JSON
+            tips_alerts_path = f"{user_storage_dir}/tips_alerts.json"
+            tips_alerts_file = f"temp_tips_alerts_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
             
-            storage_paths = {}
-            
-            # 1. Store raw news data as JSON
-            news_file = f"{user_folder}/raw_news_data.json"
-            with open("temp_news_data.json", "w", encoding="utf-8") as f:
-                json.dump(news_data, f, ensure_ascii=False, indent=2)
-            if upload_file("temp_news_data.json", news_file):
-                storage_paths["raw_news_data"] = news_file
-            if os.path.exists("temp_news_data.json"):
-                os.remove("temp_news_data.json")
-            
-            # 2. Store tips and alerts as JSON
-            tips_alerts_file = f"{user_folder}/tips_alerts.json"
-            with open("temp_tips_alerts.json", "w", encoding="utf-8") as f:
+            with open(tips_alerts_file, 'w', encoding='utf-8') as f:
                 json.dump(tips_alerts, f, ensure_ascii=False, indent=2)
-            if upload_file("temp_tips_alerts.json", tips_alerts_file):
-                storage_paths["tips_alerts"] = tips_alerts_file
-            if os.path.exists("temp_tips_alerts.json"):
-                os.remove("temp_tips_alerts.json")
             
-            # 3. Store final merged report as TXT
-            final_report = await self._generate_final_merged_report(domain_reports)
-            final_report_file = f"{user_folder}/final_report.txt"
-            with open("temp_final_report.txt", "w", encoding="utf-8") as f:
-                f.write(final_report)
-            if upload_file("temp_final_report.txt", final_report_file):
-                storage_paths["final_report"] = final_report_file
-            if os.path.exists("temp_final_report.txt"):
-                os.remove("temp_final_report.txt")
+            if upload_file(tips_alerts_file, tips_alerts_path):
+                storage_paths["tips_alerts"] = tips_alerts_path
+                os.remove(tips_alerts_file)  # Clean up temp file
             
-            # 4. Store individual domain reports as TXT files
-            domain_reports_paths = {}
-            for domain, report in domain_reports.items():
-                if report:
-                    domain_file = f"{user_folder}/{domain}_report.txt"
-                    domain_content = self._format_domain_report(domain, report)
-                    with open(f"temp_{domain}_report.txt", "w", encoding="utf-8") as f:
-                        f.write(domain_content)
-                    if upload_file(f"temp_{domain}_report.txt", domain_file):
-                        domain_reports_paths[domain] = domain_file
-                    if os.path.exists(f"temp_{domain}_report.txt"):
-                        os.remove(f"temp_{domain}_report.txt")
+            # Store final report as TXT
+            final_report_path = f"{user_storage_dir}/final_report.txt"
+            final_report_file = f"temp_final_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
             
-            storage_paths["domain_reports"] = domain_reports_paths
+            with open(final_report_file, 'w', encoding='utf-8') as f:
+                f.write("# Smart Tracker Final Report\n\n")
+                f.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                
+                for domain, report in final_reports.items():
+                    if report and report.get("status") == "success":
+                        f.write(f"## {domain.title()} Domain\n\n")
+                        f.write(report.get("synthesis", "No synthesis available"))
+                        f.write("\n\n---\n\n")
             
-            logger.info(f"Files stored in object storage for user: {user_email}")
+            if upload_file(final_report_file, final_report_path):
+                storage_paths["final_report"] = final_report_path
+                os.remove(final_report_file)  # Clean up temp file
+            
+            # Store individual domain reports
+            for domain, report in final_reports.items():
+                if report and report.get("status") == "success":
+                    domain_path = f"{user_storage_dir}/domains/{domain}_report.txt"
+                    domain_file = f"temp_{domain}_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+                    
+                    with open(domain_file, 'w', encoding='utf-8') as f:
+                        f.write(f"# {domain.title()} Domain Report\n\n")
+                        f.write(report.get("synthesis", "No synthesis available"))
+                    
+                    if upload_file(domain_file, domain_path):
+                        storage_paths[f"{domain}_report"] = domain_path
+                        os.remove(domain_file)  # Clean up temp file
+            
+            logger.info(f"Files stored in object storage: {storage_paths}")
             return storage_paths
             
         except Exception as e:
-            logger.error(f"Object storage failed: {e}")
-            # Return empty storage paths but don't fail the entire workflow
-            return {
-                "raw_news_data": "",
-                "tips_alerts": "",
-                "final_report": "",
-                "domain_reports": {}
-            }
+            logger.error(f"Error storing files in object storage: {e}")
+            return {}
     
-    async def _generate_final_merged_report(self, domain_reports: Dict[str, Any]) -> str:
-        """Generate final merged report from all domain reports"""
-        try:
-            report_sections = []
-            report_sections.append("# Smart Tracker - Final Merged Report")
-            report_sections.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            report_sections.append("")
-            
-            for domain, report in domain_reports.items():
-                if report:
-                    report_sections.append(f"## {domain.title()} Domain Report")
-                    report_sections.append("")
-                    
-                    # Extract synthesis from the report
-                    synthesis = report.get("synthesis", "")
-                    if synthesis:
-                        report_sections.append(synthesis)
-                    else:
-                        report_sections.append(f"Report available for {domain} domain.")
-                    
-                    report_sections.append("")
-                    report_sections.append("---")
-                    report_sections.append("")
-            
-            return "\n".join(report_sections)
-            
-        except Exception as e:
-            logger.error(f"Final report generation failed: {e}")
-            return f"# Smart Tracker - Final Report\n\nError generating report: {str(e)}"
-    
-    def _format_domain_report(self, domain: str, report: Dict[str, Any]) -> str:
-        """Format domain report for storage"""
-        try:
-            content = []
-            content.append(f"# {domain.title()} Domain Report")
-            content.append(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-            content.append("")
-            
-            synthesis = report.get("synthesis", "")
-            if synthesis:
-                content.append(synthesis)
-            else:
-                content.append(f"Report available for {domain} domain.")
-            
-            return "\n".join(content)
-            
-        except Exception as e:
-            logger.error(f"Domain report formatting failed: {e}")
-            return f"# {domain.title()} Domain Report\n\nError formatting report: {str(e)}"
-    
-    async def _create_database_report(self, user_email: str, storage_paths: Dict[str, str], 
-                                     tips_alerts: Dict[str, Any]) -> Dict[str, Any]:
+    async def _create_database_report(self, user_email: str, final_reports: Dict[str, Any], 
+                                     tips_alerts: Dict[str, Any], storage_paths: Dict[str, str]) -> Dict[str, Any]:
         """Create database report with storage paths"""
         try:
             # Count tips and alerts
             tips_count = len(tips_alerts.get("tips", []))
             alerts_count = len(tips_alerts.get("alerts", []))
             
+            # Create report files JSON
+            report_files = {
+                "tips_alerts_json": storage_paths.get("tips_alerts", ""),
+                "final_report_txt": storage_paths.get("final_report", ""),
+                "domain_reports": {
+                    domain: storage_paths.get(f"{domain}_report", "")
+                    for domain in self.domains
+                }
+            }
+            
             # Create report in database
-            tips_alerts_path = storage_paths.get("tips_alerts", "")
-            final_report_path = storage_paths.get("final_report", "")
-            
-            logger.info(f"Creating database report with paths:")
-            logger.info(f"  - Tips/Alerts JSON: {tips_alerts_path}")
-            logger.info(f"  - Final Report: {final_report_path}")
-            
             report_result = create_report(
                 user_email=user_email,
                 report_date=date.today(),
-                report_domains=["prawo", "polityka", "financial"],
+                report_domains=self.domains,
                 report_alerts=alerts_count,
                 report_tips=tips_count,
-                report_alerts_tips_json_path=tips_alerts_path,
-                path_to_report=final_report_path,
+                report_alerts_tips_json_path=storage_paths.get("tips_alerts", ""),
+                path_to_report=storage_paths.get("final_report", ""),
                 path_to_report_vector="",  # Skip RAG for now
                 report_status="published"
             )
@@ -330,8 +321,8 @@ class MainWorkflowOrchestrator:
             return report_result
             
         except Exception as e:
-            logger.error(f"Database report creation failed: {e}")
+            logger.error(f"Error creating database report: {e}")
             return {"status": "error", "message": str(e)}
 
-# Global orchestrator instance
-main_workflow = MainWorkflowOrchestrator()
+# Global workflow instance
+main_workflow = MainWorkflow()

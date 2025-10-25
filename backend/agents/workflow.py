@@ -18,7 +18,7 @@ from .tips_alerts_generator import tips_alerts_generator
 from services.perplexity_service import perplexity_service
 
 from services.http_client import serper_client, scraper_client
-from services.database import store_search_results, store_agent_output, store_final_report, store_tips_alerts
+# Removed old database imports - using database_simple instead
 from services.config import settings
 
 logger = logging.getLogger(__name__)
@@ -65,7 +65,7 @@ class TelecomWorkflow:
             final_tips_alerts = await tips_alerts_generator.generate_tips_alerts(successful_reports)
             
             # Step 4: Store results
-            await store_tips_alerts(final_tips_alerts)
+            # Database storage handled by main workflow
             
             # Calculate execution time
             execution_time = (datetime.utcnow() - start_time).total_seconds()
@@ -146,7 +146,7 @@ class TelecomWorkflow:
             )
             
             # Store final report
-            await store_final_report(domain, final_report)
+            # Database storage handled by main workflow
             
             logger.info(f"Successfully processed domain: {domain}")
             return final_report
@@ -165,7 +165,7 @@ class TelecomWorkflow:
             search_results = await serper_client.search(query, domain)
             
             # Store search results
-            await store_search_results(domain, search_results.get("organic", []))
+            # Database storage handled by main workflow
             
             return search_results
             
@@ -222,7 +222,7 @@ class TelecomWorkflow:
                     keeper_outputs.append(keeper_output)
                     
                     # Store keeper output
-                    await store_agent_output("keeper", domain, keeper_output)
+                    # Database storage handled by main workflow
             
             return keeper_outputs
             

@@ -193,10 +193,6 @@ def create_report(
         session = SessionLocal()
         
         # Create report
-        logger.info(f"Creating report with paths:")
-        logger.info(f"  - report_alerts_tips_json_path: {report_alerts_tips_json_path}")
-        logger.info(f"  - path_to_report: {path_to_report}")
-        
         report = Report(
             user_email=user_email,
             report_date=report_date,
@@ -211,13 +207,6 @@ def create_report(
         
         session.add(report)
         session.commit()
-        
-        # Debug: Check if the report was saved with the correct paths
-        saved_report = session.query(Report).filter_by(report_id=report.report_id).first()
-        if saved_report:
-            logger.info(f"Saved report paths:")
-            logger.info(f"  - report_alerts_tips_json_path: {saved_report.report_alerts_tips_json_path}")
-            logger.info(f"  - path_to_report: {saved_report.path_to_report}")
         
         report_id = report.report_id
         session.close()
