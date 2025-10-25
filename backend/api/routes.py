@@ -38,8 +38,7 @@ async def run_pipeline(user_email: str, telecom_data: Dict[str, Any] = None, dom
         logger.info(f"Starting pipeline with telecom data for domains: {domains}")
         
         # Load telecom data from S3 if not provided
-        if not telecom_data:
-            telecom_data = load_report_from_s3()
+        telecom_data = load_report_from_s3()
         
         # Process each domain through the pipeline
         domain_reports = {}
