@@ -17,43 +17,6 @@ logger = logging.getLogger(__name__)
 # Create router
 router = APIRouter()
 
-@router.get("/")
-async def api_root():
-    """API root endpoint"""
-    return {
-        "message": "Smart Tracker - Telecom Intelligence System API",
-        "version": "1.0.0",
-        "endpoints": {
-            "workflow": "/workflow/run",
-            "pipeline": "/pipeline/run", 
-            "domains": "/domains",
-            "reports": "/reports",
-            "tips_alerts": "/tips-alerts",
-            "health": "/health"
-        }
-    }
-
-@router.post("/workflow/run")
-async def run_full_workflow(background_tasks: BackgroundTasks):
-    """Run the complete multi-agent workflow for all domains"""
-    try:
-        logger.info("Starting full workflow via API")
-        
-        # Run workflow in background
-        result = await telecom_workflow.run_full_workflow()
-        
-        return {
-            "message": "Full workflow completed",
-            "workflow_id": result.get("workflow_id"),
-            "execution_time": result.get("execution_time"),
-            "domains_processed": result.get("domains_processed"),
-            "status": result.get("status"),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Full workflow API call failed: {e}")
-        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
 
 @router.post("/pipeline/run")
 async def run_pipeline(telecom_data: Dict[str, Any], domains: List[str] = ["prawo", "polityka", "financial"]):
@@ -176,14 +139,6 @@ async def run_pipeline(telecom_data: Dict[str, Any], domains: List[str] = ["praw
         logger.error(f"Pipeline failed: {e}")
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")
 
-@router.get("/domains")
-async def get_domains():
-    """Get available domains"""
-    return {
-        "domains": settings.domains,
-        "description": "Available domains for analysis",
-        "total": len(settings.domains)
-    }
 
 @router.get("/reports")
 async def get_all_reports():
@@ -207,6 +162,7 @@ async def get_all_reports():
         logger.error(f"Failed to get all reports: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get reports: {str(e)}")
 
+
 @router.get("/tips-alerts")
 async def get_tips_alerts():
     """Get final tips and alerts"""
@@ -229,6 +185,7 @@ async def get_tips_alerts():
     except Exception as e:
         logger.error(f"Failed to get tips and alerts: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get tips and alerts: {str(e)}")
+
 
 @router.get("/health")
 async def health_check():
