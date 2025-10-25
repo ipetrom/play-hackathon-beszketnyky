@@ -139,3 +139,4 @@ class ScraperService:
 scraper_service = ScraperService()
 
 
+

@@ -21,14 +21,15 @@ router = APIRouter()
 async def api_root():
     """API root endpoint"""
     return {
-        "message": "Telecom News Multi-Agent System API",
+        "message": "Smart Tracker - Telecom Intelligence System API",
         "version": "1.0.0",
         "endpoints": {
-            "workflow": "/workflow",
+            "workflow": "/workflow/run",
+            "pipeline": "/pipeline/run", 
             "domains": "/domains",
             "reports": "/reports",
             "tips_alerts": "/tips-alerts",
-            "status": "/status"
+            "health": "/health"
         }
     }
 
@@ -175,28 +176,6 @@ async def run_pipeline(telecom_data: Dict[str, Any], domains: List[str] = ["praw
         logger.error(f"Pipeline failed: {e}")
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")
 
-@router.post("/workflow/domain/{domain}")
-async def run_domain_workflow(domain: str):
-    """Run workflow for a specific domain"""
-    try:
-        if domain not in settings.domains:
-            raise HTTPException(status_code=400, detail=f"Unknown domain: {domain}")
-        
-        logger.info(f"Running domain workflow for: {domain}")
-        
-        result = await telecom_workflow.run_domain_workflow(domain)
-        
-        return {
-            "message": f"Domain workflow completed for {domain}",
-            "domain": domain,
-            "result": result,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Domain workflow API call failed for {domain}: {e}")
-        raise HTTPException(status_code=500, detail=f"Domain workflow failed: {str(e)}")
-
 @router.get("/domains")
 async def get_domains():
     """Get available domains"""
@@ -205,47 +184,6 @@ async def get_domains():
         "description": "Available domains for analysis",
         "total": len(settings.domains)
     }
-
-@router.get("/domains/{domain}/status")
-async def get_domain_status(domain: str):
-    """Get status of a specific domain"""
-    try:
-        if domain not in settings.domains:
-            raise HTTPException(status_code=400, detail=f"Unknown domain: {domain}")
-        
-        status = await telecom_workflow.get_domain_status(domain)
-        return status
-        
-    except Exception as e:
-        logger.error(f"Failed to get domain status for {domain}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get domain status: {str(e)}")
-
-@router.get("/reports/{domain}")
-async def get_domain_report(domain: str):
-    """Get final report for a specific domain"""
-    try:
-        if domain not in settings.domains:
-            raise HTTPException(status_code=400, detail=f"Unknown domain: {domain}")
-        
-        report = await get_final_report(domain)
-        
-        if not report:
-            return {
-                "message": f"No report available for domain: {domain}",
-                "domain": domain,
-                "status": "not_found"
-            }
-        
-        return {
-            "message": f"Report retrieved for domain: {domain}",
-            "domain": domain,
-            "report": report,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get domain report for {domain}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get domain report: {str(e)}")
 
 @router.get("/reports")
 async def get_all_reports():
@@ -292,62 +230,6 @@ async def get_tips_alerts():
         logger.error(f"Failed to get tips and alerts: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get tips and alerts: {str(e)}")
 
-@router.get("/agents/{agent_name}/output/{domain}")
-async def get_agent_output(agent_name: str, domain: str):
-    """Get output from a specific agent for a domain"""
-    try:
-        if domain not in settings.domains:
-            raise HTTPException(status_code=400, detail=f"Unknown domain: {domain}")
-        
-        output = await get_agent_output(agent_name, domain)
-        
-        if not output:
-            return {
-                "message": f"No output available for agent {agent_name} and domain {domain}",
-                "agent": agent_name,
-                "domain": domain,
-                "status": "not_found"
-            }
-        
-        return {
-            "message": f"Agent output retrieved for {agent_name} and domain {domain}",
-            "agent": agent_name,
-            "domain": domain,
-            "output": output,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get agent output for {agent_name} and {domain}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get agent output: {str(e)}")
-
-@router.get("/status")
-async def get_system_status():
-    """Get overall system status"""
-    try:
-        # Check domain statuses
-        domain_statuses = {}
-        for domain in settings.domains:
-            status = await telecom_workflow.get_domain_status(domain)
-            domain_statuses[domain] = status.get("status", "unknown")
-        
-        # Check if tips and alerts are available
-        tips_alerts = await get_tips_alerts()
-        tips_alerts_available = tips_alerts is not None
-        
-        return {
-            "system_status": "operational",
-            "domains": domain_statuses,
-            "tips_alerts_available": tips_alerts_available,
-            "total_domains": len(settings.domains),
-            "active_domains": len([s for s in domain_statuses.values() if s == "available"]),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get system status: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get system status: {str(e)}")
-
 @router.get("/health")
 async def health_check():
     """Health check endpoint"""
@@ -356,47 +238,3 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0"
     }
-
-# Additional utility endpoints
-
-@router.get("/search/{domain}")
-async def search_domain(domain: str, query: Optional[str] = None):
-    """Search for content in a specific domain"""
-    try:
-        if domain not in settings.domains:
-            raise HTTPException(status_code=400, detail=f"Unknown domain: {domain}")
-        
-        # This would trigger a search for the domain
-        # For now, return a placeholder
-        return {
-            "message": f"Search initiated for domain: {domain}",
-            "domain": domain,
-            "query": query or f"Poland telecommunications {domain} 2025",
-            "status": "search_initiated",
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Search failed for domain {domain}: {e}")
-        raise HTTPException(status_code=500, detail=f"Search failed: {str(e)}")
-
-@router.get("/analytics")
-async def get_analytics():
-    """Get system analytics and metrics"""
-    try:
-        # This would provide analytics about the system
-        # For now, return basic metrics
-        return {
-            "message": "Analytics retrieved",
-            "metrics": {
-                "total_domains": len(settings.domains),
-                "system_uptime": "N/A",
-                "last_workflow_run": "N/A",
-                "total_reports_generated": "N/A"
-            },
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get analytics: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get analytics: {str(e)}")
