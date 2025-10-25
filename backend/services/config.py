@@ -5,14 +5,22 @@ Configuration settings for the Telecom News Multi-Agent System
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 import os
+import dotenv
+
+dotenv.load_dotenv()
+
+SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
+PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
+SCALEWAY_API_KEY = os.getenv("SCALEWAY_API_KEY", "")
+
 
 class Settings(BaseSettings):
     """Application settings"""
     
     # API Keys
-    serper_api_key: str = ""
-    perplexity_api_key: str = ""
-    scaleway_api_key: str = ""
+    serper_api_key: str = SERPER_API_KEY
+    perplexity_api_key: str = PERPLEXITY_API_KEY
+    scaleway_api_key: str = SCALEWAY_API_KEY
     scaleway_project_id: str = ""
     
     # Database

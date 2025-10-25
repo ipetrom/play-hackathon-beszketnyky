@@ -13,6 +13,7 @@ from services.database import get_final_report, get_tips_alerts, get_agent_outpu
 from services.database_simple import create_user, get_user, update_user_settings, get_user_reports, create_report
 from services.config import settings
 from workflows.main_workflow import main_workflow
+from services.s3_loader import load_report_from_s3
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +36,9 @@ async def run_pipeline(telecom_data: Dict[str, Any], domains: List[str] = ["praw
     try:
         logger.info(f"Starting pipeline with telecom data for domains: {domains}")
         
+        # Load last telecom data from S3
+        telecom_data = load_report_from_s3()
+        
         # Process each domain through the pipeline
         domain_reports = {}
         
@@ -51,6 +55,8 @@ async def run_pipeline(telecom_data: Dict[str, Any], domains: List[str] = ["praw
                 # Step 5: Get Perplexity context (skip scraping and processing)
                 from services.perplexity_service import perplexity_service
                 perplexity_context = await perplexity_service.get_domain_context(domain)
+                
+                print(f"\n\nPerplexity context for\n\n {domain}: {perplexity_context}")
                 
                 if not perplexity_context or perplexity_context.get("status") != "success":
                     logger.warning(f"Perplexity context failed for domain: {domain}")
