@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Loader2, FileText, AlertTriangle, Lightbulb } from "lucide-react"
 import { getReportDetail } from "@/lib/api"
+import { MarkdownRenderer } from "@/components/markdown-renderer"
 
 interface DomainSynthesisProps {
   reportId: string
@@ -37,7 +38,7 @@ export function DomainSynthesis({ reportId, reportData }: DomainSynthesisProps) 
       
       // Simulate domain synthesis content
       setDomainData({
-        prawo: `# Prawo Domain Report
+        prawo: `# Law Domain Report
 
 ## Executive Summary
 Below are the key updates from the last week relevant to Poland's telecommunications law, UKE, UOKiK, and related regulatory developments impacting the telecom industry.
@@ -58,7 +59,7 @@ Below are the key updates from the last week relevant to Poland's telecommunicat
 - Maintain compliance with ECL requirements
 - Review consumer-facing documentation and processes`,
         
-        polityka: `# Polityka Domain Report
+        polityka: `# Political Domain Report
 
 ## Executive Summary
 Recent political developments affecting Poland's telecommunications sector show ongoing consultations and regulatory updates.
@@ -175,27 +176,21 @@ Financial performance updates for Poland's telecommunications market show strong
           </TabsList>
           
           <TabsContent value="prawo" className="mt-4">
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <pre className="whitespace-pre-wrap font-sans text-sm">
-                {domainData.prawo || 'No legal analysis available'}
-              </pre>
-            </div>
+            <MarkdownRenderer 
+              content={domainData.prawo || 'No legal analysis available'} 
+            />
           </TabsContent>
           
           <TabsContent value="polityka" className="mt-4">
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <pre className="whitespace-pre-wrap font-sans text-sm">
-                {domainData.polityka || 'No political analysis available'}
-              </pre>
-            </div>
+            <MarkdownRenderer 
+              content={domainData.polityka || 'No political analysis available'} 
+            />
           </TabsContent>
           
           <TabsContent value="financial" className="mt-4">
-            <div className="prose prose-sm max-w-none dark:prose-invert">
-              <pre className="whitespace-pre-wrap font-sans text-sm">
-                {domainData.financial || 'No financial analysis available'}
-              </pre>
-            </div>
+            <MarkdownRenderer 
+              content={domainData.financial || 'No financial analysis available'} 
+            />
           </TabsContent>
         </Tabs>
       </CardContent>

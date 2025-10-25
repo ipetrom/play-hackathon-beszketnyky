@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet"
+import { MarkdownRenderer } from "@/components/markdown-renderer"
 import { useToast } from "@/hooks/use-toast"
 import type { ChatMessage } from "@/lib/types"
 
@@ -37,6 +38,7 @@ export function ReportChat({ reportId, isOpen, onClose }: ReportChatProps) {
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }
+
 
   const loadMessages = async () => {
     try {
@@ -77,22 +79,34 @@ export function ReportChat({ reportId, isOpen, onClose }: ReportChatProps) {
     setIsLoading(true)
 
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/reports/${reportId}/chat`, {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ content: input.trim() })
-      // })
-      // const data = await response.json()
+      console.log('Sending chat request for report ID:', reportId)
+      console.log('Question:', input.trim())
+      
+      // Call the actual API endpoint
+      const response = await fetch(`http://localhost:8000/api/v1/reports/${reportId}/chat`, {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json' 
+        },
+        body: JSON.stringify({ question: input.trim() })
+      })
 
-      // Mock AI response
-      await new Promise((resolve) => setTimeout(resolve, 1000))
+      console.log('Response status:', response.status)
+      console.log('Response headers:', response.headers)
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('Error response:', errorText)
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`)
+      }
+
+      const data = await response.json()
 
       const assistantMessage: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
         reportId,
         role: "assistant",
-        content: `This is a mock response about report ${reportId}. In production, this would be an AI-generated answer based on the report content and your question: "${input.trim()}"`,
+        content: data.answer || "Sorry, I couldn't generate a response.",
         createdAt: new Date().toISOString(),
       }
 
@@ -102,6 +116,7 @@ export function ReportChat({ reportId, isOpen, onClose }: ReportChatProps) {
       // Save to localStorage
       localStorage.setItem(`chat_${reportId}`, JSON.stringify(updatedMessages))
     } catch (error) {
+      console.error("Chat API error:", error)
       toast({
         title: "Error",
         description: "Failed to send message. Please try again.",
@@ -158,7 +173,16 @@ export function ReportChat({ reportId, isOpen, onClose }: ReportChatProps) {
                     </Badge>
                     <span className="text-xs opacity-70">{new Date(message.createdAt).toLocaleTimeString()}</span>
                   </div>
-                  <p className="text-sm leading-relaxed">{message.content}</p>
+                  {message.role === "assistant" ? (
+                     <div className="prose prose-sm max-w-none dark:prose-invert">
+                       <MarkdownRenderer 
+                         content={message.content} 
+                         className="text-sm"
+                       />
+                     </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed">{message.content}</p>
+                  )}
                 </div>
               </div>
             ))

@@ -380,3 +380,50 @@ async def get_report_detail(report_id: str):
     except Exception as e:
         logger.error(f"Failed to get report detail: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get report detail: {str(e)}")
+
+@router.post("/reports/{report_id}/chat")
+async def chat_with_report(report_id: str, chat_data: Dict[str, Any]):
+    """Chat with report using Perplexity AI"""
+    try:
+        user_question = chat_data.get("question", "").strip()
+        if not user_question:
+            raise HTTPException(status_code=400, detail="Question is required")
+        
+        # Get report from database to provide context
+        from services.database_simple import get_report
+        report = get_report(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        # Create the prompt with the user's question
+        prompt = f"""You are a research assistant specialized in the telecommunications domain.
+Your task is to answer the user's question using the most recent, credible news sources available, ideally from the past 3–6 months.
+
+The answer must be:
+- Accurate and grounded in current events or industry developments
+- Written in a clear, concise, and informative style
+- Do NOT include any links, URLs, or source references just an answer.
+- Do NOT include citations like [1], [2], etc.
+
+---
+
+User Query:
+{user_question}"""
+        
+        # Use Perplexity service to get the answer
+        from services.perplexity_service import perplexity_service
+        response = await perplexity_service.get_answer(prompt)
+        
+        if response.get("status") != "success":
+            raise HTTPException(status_code=500, detail="Failed to get AI response")
+        
+        return {
+            "message": "Chat response generated successfully",
+            "answer": response.get("answer", "Sorry, I couldn't generate a response."),
+            "sources": response.get("sources", []),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to chat with report: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to chat with report: {str(e)}")

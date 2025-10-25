@@ -44,6 +44,129 @@ class PerplexityService:
             ]
         }
     
+    async def get_answer(self, prompt: str) -> Dict[str, Any]:
+        """
+        Get answer from Perplexity for a specific prompt
+        
+        Args:
+            prompt: The prompt/question to ask Perplexity
+            
+        Returns:
+            Perplexity response with answer and sources
+        """
+        try:
+            logger.info("Getting Perplexity answer for user question")
+            
+            # Use Perplexity client to get answer
+            response = await perplexity_client.summarize(prompt, "general")
+            
+            if not response or "choices" not in response:
+                logger.warning("No response from Perplexity for user question")
+                return {
+                    "status": "error",
+                    "answer": "Sorry, I couldn't generate a response to your question.",
+                    "sources": []
+                }
+            
+            # Extract content from response
+            content = response["choices"][0]["message"]["content"]
+            
+            # Clean up citations (remove [1], [2], etc.)
+            content = self._clean_citations(content)
+            
+            # Extract sources if available
+            sources = self._extract_sources_from_response(content)
+            
+            logger.info("Successfully got Perplexity answer")
+            return {
+                "status": "success",
+                "answer": content,
+                "sources": sources
+            }
+            
+        except Exception as e:
+            logger.error(f"Perplexity answer failed: {e}")
+            return {
+                "status": "error",
+                "answer": "Sorry, I encountered an error while processing your question.",
+                "sources": []
+            }
+    
+    def _clean_citations(self, content: str) -> str:
+        """Remove all citations and references from content"""
+        import re
+        
+        # Remove multiple citations in a row like [2][4][9] or [1][2][3]
+        content = re.sub(r'\[\d+\](?:\[\d+\])*', '', content)
+        
+        # Remove single numerical citations like [1], [2], [3], etc.
+        content = re.sub(r'\[\d+\]', '', content)
+        
+        # Remove source references like "Source:", "According to", etc.
+        content = re.sub(r'Source:\s*[^\n]+', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'According to\s+[^,\n]+', '', content, flags=re.IGNORECASE)
+        content = re.sub(r'Based on\s+[^,\n]+', '', content, flags=re.IGNORECASE)
+        
+        # Remove markdown links [text](url)
+        content = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', content)
+        
+        # Remove URLs
+        content = re.sub(r'https?://[^\s<>"{}|\\^`\[\]]+', '', content)
+        
+        # Remove reference patterns like "reports", "studies show", etc.
+        content = re.sub(r'[A-Z][a-z]+ [A-Z][a-z]+ reports?', '', content)
+        content = re.sub(r'[A-Z][a-z]+ [A-Z][a-z]+ studies?', '', content)
+        
+        # Clean up extra whitespace and multiple spaces
+        content = re.sub(r'\s+', ' ', content)
+        content = content.strip()
+        
+        return content
+    
+    def _extract_sources_from_response(self, content: str) -> list:
+        """Extract sources from Perplexity response"""
+        try:
+            import re
+            
+            # Look for URLs in the content
+            url_pattern = r'https?://[^\s<>"{}|\\^`\[\]]+'
+            urls = re.findall(url_pattern, content)
+            
+            # Look for source references
+            source_patterns = [
+                r'\[([^\]]+)\]\(([^)]+)\)',  # Markdown links
+                r'Source: ([^\n]+)',
+                r'According to ([^,\n]+)',
+                r'([A-Z][a-z]+ [A-Z][a-z]+) reports'
+            ]
+            
+            sources = []
+            for pattern in source_patterns:
+                matches = re.findall(pattern, content)
+                sources.extend(matches)
+            
+            # Combine URLs and text sources
+            all_sources = urls + sources
+            
+            # Clean and deduplicate
+            cleaned_sources = []
+            seen = set()
+            
+            for source in all_sources:
+                if isinstance(source, tuple):
+                    source = source[0] if source[0] else source[1]
+                
+                source = source.strip()
+                if source and source not in seen and len(source) > 3:
+                    cleaned_sources.append(source)
+                    seen.add(source)
+            
+            return cleaned_sources[:5]  # Limit to 5 sources
+            
+        except Exception as e:
+            logger.error(f"Failed to extract sources: {e}")
+            return []
+
     async def get_domain_context(self, domain: str) -> Dict[str, Any]:
         """
         Get additional context for domain using Perplexity

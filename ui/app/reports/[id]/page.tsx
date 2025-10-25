@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { ArrowLeft, ExternalLink, Copy, MessageSquare } from "lucide-react"
+import { ArrowLeft, MessageSquare } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,6 +10,8 @@ import { ReportsHeader } from "@/components/reports-header"
 import { ReportDiff } from "@/components/report-diff"
 import { ReportChat } from "@/components/report-chat"
 import { DomainSynthesis } from "@/components/domain-synthesis"
+import { TipsAlerts } from "@/components/tips-alerts"
+import { MarkdownRenderer } from "@/components/markdown-renderer"
 import { useToast } from "@/hooks/use-toast"
 import type { ReportDetail } from "@/lib/types"
 import { mockReportDetails } from "@/lib/mock-data"
@@ -35,6 +37,7 @@ export default function ReportDetailPage() {
   }, [router])
 
   useEffect(() => {
+    console.log('Report ID from URL params:', params.id)
     fetchReport()
   }, [params.id])
 
@@ -62,11 +65,8 @@ export default function ReportDetailPage() {
             summary: `Generated report with ${apiReport.report_tips} tips and ${apiReport.report_alerts} alerts`,
             body: `This report contains analysis across ${apiReport.report_domains?.join(', ')} domains with ${apiReport.report_tips} actionable tips and ${apiReport.report_alerts} alerts for business decision-making.`,
             entities: apiReport.report_domains || [],
-            sources: [
-              { label: "Merged Summary", url: apiReport.path_to_report || "#" },
-              { label: "Tips & Alerts", url: apiReport.report_alerts_tips_json_path || "#" }
-            ],
-            metadataJson: JSON.stringify(apiReport, null, 2),
+            sources: [],
+            metadataJson: "",
             hasDiff: false,
             diff: undefined
           }
@@ -99,23 +99,6 @@ export default function ReportDetailPage() {
     }
   }
 
-  const handleCopyMetadata = () => {
-    if (report) {
-      navigator.clipboard.writeText(report.metadataJson)
-      toast({
-        title: "Copied!",
-        description: "Metadata JSON copied to clipboard.",
-      })
-    }
-  }
-
-  const handleOpenAllSources = () => {
-    if (report) {
-      report.sources.forEach((source) => {
-        window.open(source.url, "_blank", "noopener,noreferrer")
-      })
-    }
-  }
 
   if (!user) {
     return null
@@ -160,11 +143,6 @@ export default function ReportDetailPage() {
     )
   }
 
-  const impactColor = {
-    Low: "bg-muted text-muted-foreground",
-    Medium: "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400",
-    High: "bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400",
-  }[report.impact.level]
 
   return (
     <div className="min-h-screen bg-background">
@@ -193,117 +171,33 @@ export default function ReportDetailPage() {
             </div>
           </div>
 
-          <div className="grid lg:grid-cols-3 gap-6">
-            {/* Metadata Panel */}
-            <Card className="lg:sticky lg:top-6 h-fit">
+          <div className="space-y-6">
+            <Card>
               <CardHeader>
-                <CardTitle>Metadata</CardTitle>
+                <CardTitle>Full Report</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <p className="text-sm font-medium mb-1">Category</p>
-                  <Badge variant="outline">{report.category}</Badge>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium mb-1">Impact</p>
-                  <div className="flex items-center gap-2">
-                    <Badge className={impactColor}>{report.impact.level}</Badge>
-                    <span className="text-sm text-muted-foreground">Score: {report.impact.score}</span>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium mb-2">Affected Entities</p>
-                  <div className="flex flex-wrap gap-2">
-                    {report.entities.map((entity) => (
-                      <Badge key={entity} variant="secondary">
-                        {entity}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-sm font-medium mb-2">Sources</p>
-                  <div className="space-y-2">
-                    {report.sources.map((source, idx) => (
-                      <a
-                        key={idx}
-                        href={source.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-sm text-primary hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        {source.label}
-                      </a>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="pt-4 space-y-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2 bg-transparent"
-                    onClick={handleCopyMetadata}
-                  >
-                    <Copy className="h-4 w-4" />
-                    Copy metadata JSON
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full gap-2 bg-transparent"
-                    onClick={handleOpenAllSources}
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    Open all sources
-                  </Button>
-                </div>
+              <CardContent>
+                <MarkdownRenderer content={report.body} />
               </CardContent>
             </Card>
 
-            {/* Main Content */}
-            <div className="lg:col-span-2 space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Summary</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <p className="text-foreground leading-relaxed">{report.summary}</p>
-                </CardContent>
-              </Card>
+            <DomainSynthesis reportId={report.id} reportData={report} />
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Full Report</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div
-                    className="prose prose-sm max-w-none dark:prose-invert"
-                    dangerouslySetInnerHTML={{ __html: report.body }}
-                  />
-                </CardContent>
-              </Card>
+            <TipsAlerts reportId={report.id} reportData={report} />
 
-              <DomainSynthesis reportId={report.id} reportData={report} />
+            {report.hasDiff && report.diff && <ReportDiff diff={report.diff} />}
 
-              {report.hasDiff && report.diff && <ReportDiff diff={report.diff} />}
-
-              <div className="flex justify-center">
-                <Button size="lg" className="gap-2" onClick={() => setIsChatOpen(true)}>
-                  <MessageSquare className="h-5 w-5" />
-                  Ask about this report
-                </Button>
-              </div>
+            <div className="flex justify-center">
+              <Button size="lg" className="gap-2" onClick={() => setIsChatOpen(true)}>
+                <MessageSquare className="h-5 w-5" />
+                Ask about this report
+              </Button>
             </div>
           </div>
         </div>
       </main>
 
-      <ReportChat reportId={report.id} isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+      <ReportChat reportId={params.id as string} isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
     </div>
   )
 }
