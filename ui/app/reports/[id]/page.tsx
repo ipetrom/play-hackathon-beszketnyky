@@ -23,6 +23,8 @@ export default function ReportDetailPage() {
   const { toast } = useToast()
   const [user, setUser] = useState<{ name: string; email: string } | null>(null)
   const [report, setReport] = useState<ReportDetail | null>(null)
+  const [domainSynthesis, setDomainSynthesis] = useState<{[key: string]: string}>({})
+  const [tipsAlerts, setTipsAlerts] = useState<any>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isChatOpen, setIsChatOpen] = useState(false)
 
@@ -72,6 +74,29 @@ export default function ReportDetailPage() {
           }
           
           setReport(convertedReport)
+          
+          // Set domain synthesis data if available
+          console.log('Report detail page - API response domain_synthesis:', apiData.domain_synthesis)
+          console.log('Report detail page - domain_synthesis keys:', Object.keys(apiData.domain_synthesis || {}))
+          
+          if (apiData.domain_synthesis) {
+            setDomainSynthesis(apiData.domain_synthesis)
+            console.log('Set domain synthesis data:', apiData.domain_synthesis)
+          } else {
+            console.log('No domain synthesis data in API response')
+          }
+          
+          // Set tips and alerts data if available
+          console.log('Report detail page - API response tips_alerts:', apiData.tips_alerts)
+          console.log('Report detail page - tips_alerts keys:', Object.keys(apiData.tips_alerts || {}))
+          
+          if (apiData.tips_alerts) {
+            setTipsAlerts(apiData.tips_alerts)
+            console.log('Set tips and alerts data:', apiData.tips_alerts)
+          } else {
+            console.log('No tips and alerts data in API response')
+          }
+          
           return
         }
       } catch (apiError) {
@@ -181,9 +206,9 @@ export default function ReportDetailPage() {
               </CardContent>
             </Card>
 
-            <DomainSynthesis reportId={report.id} reportData={report} />
+            <DomainSynthesis reportId={report.id} reportData={report} domainSynthesis={domainSynthesis} />
 
-            <TipsAlerts reportId={report.id} reportData={report} />
+            <TipsAlerts reportId={report.id} reportData={report} tipsAlerts={tipsAlerts} />
 
             {report.hasDiff && report.diff && <ReportDiff diff={report.diff} />}
 

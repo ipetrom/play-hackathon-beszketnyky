@@ -11,6 +11,7 @@ import { getReportDetail } from "@/lib/api"
 interface TipsAlertsProps {
   reportId: string
   reportData?: any
+  tipsAlerts?: any
 }
 
 interface Alert {
@@ -25,64 +26,42 @@ interface TipsAlertsData {
   status: string
 }
 
-export function TipsAlerts({ reportId, reportData }: TipsAlertsProps) {
+export function TipsAlerts({ reportId, reportData, tipsAlerts }: TipsAlertsProps) {
   const [tipsAlertsData, setTipsAlertsData] = useState<TipsAlertsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     loadTipsAlerts()
-  }, [reportId])
+  }, [reportId, tipsAlerts])
 
   const loadTipsAlerts = async () => {
     setIsLoading(true)
     setError(null)
     
     try {
-      // Get report detail to access the tips and alerts JSON path
-      const reportDetail = await getReportDetail(reportId)
-      const jsonPath = reportDetail.report?.report_alerts_tips_json_path
+      console.log('TipsAlerts component - tipsAlerts prop:', tipsAlerts)
+      console.log('TipsAlerts component - tipsAlerts keys:', Object.keys(tipsAlerts || {}))
       
-      if (!jsonPath) {
-        setError("No tips and alerts data available for this report")
+      // Use real tips and alerts data if available
+      if (tipsAlerts && Object.keys(tipsAlerts).length > 0) {
+        console.log('Using real tips and alerts data')
+        setTipsAlertsData(tipsAlerts)
+        setIsLoading(false)
         return
       }
-
-      // In a real implementation, you would fetch the JSON from object storage
-      // For now, we'll simulate the data structure you provided
-      const mockData: TipsAlertsData = {
-        generated_at: "2025-10-25T05:54:09.121709",
-        tips: [
-          "Accelerate 5G SA deployment in urban clusters to match Orange's network leadership, prioritizing spectrum refarming in the 3.5 GHz band to improve coverage and latency for premium subscribers.",
-          "Leverage UKE's proposed wholesale deregulation to expand fiber partnerships with local ISPs in underserved areas, reducing capex while increasing Play's broadband footprint and customer acquisition reach.",
-          "Introduce dynamic tariff bundles combining 5G mobile, home internet, and entertainment services to compete with Orange's convergence strategy, emphasizing superior customer service and transparent pricing under the new ECL requirements.",
-          "Optimize spectrum portfolio by bidding aggressively in upcoming UKE spectrum auctions for 700 MHz and 26 GHz bands to strengthen rural coverage and prepare for future mmWave use cases.",
-          "Enhance prepaid customer retention by implementing ECL-mandated balance portability and introducing loyalty rewards for long-term users, reducing churn to T-Mobile and Plus.",
-          "Invest in cybersecurity certifications aligned with EU 5G Toolbox and US-Poland 5G security agreement standards to strengthen trust and qualify for public infrastructure tenders.",
-          "Develop targeted marketing campaigns in regions where Orange is reducing wholesale access, positioning Play as a reliable alternative with competitive pricing and bundled offers."
-        ],
-        alerts: [
-          {
-            alert: "UKE is advancing plans to deregulate wholesale access markets, potentially removing Orange Polska's LLU obligations. This creates both competitive risk and opportunity—Play must act quickly to secure alternative infrastructure partnerships or expand its own fiber reach before market shifts.",
-            alert_level: 4
-          },
-          {
-            alert: "Orange Polska's Q3 2025 revenue growth (9.3% YoY) and increased capex in fiber and 5G signal aggressive market expansion. Play must accelerate its own network investment and bundling strategy to avoid losing high-value convergence customers.",
-            alert_level: 4
-          },
-          {
-            alert: "Full enforcement of the Electronic Communications Law (ECL) requires immediate updates to customer contracts, pre-contract disclosures, and number porting processes by year-end. Non-compliance risks UOKiK penalties and reputational damage.",
-            alert_level: 5
-          },
-          {
-            alert: "Cybersecurity regulations are tightening under EU and bilateral initiatives, with potential vendor restrictions on high-risk equipment. Play must audit its supply chain and ensure compliance to avoid future network deployment delays.",
-            alert_level: 3
-          }
-        ],
-        status: "success"
-      }
-
-      setTipsAlertsData(mockData)
+      
+      // If no tips and alerts data is provided, show a message
+      setTipsAlertsData({
+        generated_at: new Date().toISOString(),
+        tips: ['No tips available - the tips and alerts data could not be loaded from storage.'],
+        alerts: [{
+          alert: 'No alerts available - the tips and alerts data could not be loaded from storage.',
+          alert_level: 1
+        }],
+        status: "error"
+      })
+      
     } catch (err) {
       console.error("Failed to load tips and alerts:", err)
       setError("Failed to load tips and alerts data")

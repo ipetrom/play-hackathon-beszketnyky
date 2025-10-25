@@ -38,14 +38,22 @@ def upload_file(local_file, s3_key):
         print(f"Error uploading file {local_file}: {e}")
         return False
 
-def download_file(s3_key, local_file):
+def download_file(s3_key, local_file=None):
     try:
-        s3.download_file(BUCKET_NAME, s3_key, local_file)
-        print(f"File {s3_key} downloaded to {local_file}")
-        return True
+        if local_file:
+            # Download to local file
+            s3.download_file(BUCKET_NAME, s3_key, local_file)
+            print(f"File {s3_key} downloaded to {local_file}")
+            return True
+        else:
+            # Return content directly
+            response = s3.get_object(Bucket=BUCKET_NAME, Key=s3_key)
+            content = response['Body'].read().decode('utf-8')
+            print(f"File {s3_key} content retrieved")
+            return content
     except Exception as e:
         print(f"Error downloading file {s3_key}: {e}")
-        return False
+        return False if local_file else None
 
 if __name__ == "__main__":
     list_files()

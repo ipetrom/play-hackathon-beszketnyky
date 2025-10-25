@@ -352,34 +352,141 @@ async def get_all_reports(status: Optional[str] = None, limit: int = 50, offset:
         raise HTTPException(status_code=500, detail=f"Failed to get all reports: {str(e)}")
 
 @router.get("/reports/{report_id}")
-async def get_report_detail(report_id: str):
+def get_report_detail(report_id: str):
     """Get detailed report with domain synthesis files"""
     try:
         from services.database_simple import get_report
         from services.objest_storage import download_file
         
+        logger.info(f"Getting report detail for ID: {report_id}")
+        
         # Get report from database
-        report = get_report(report_id)
+        try:
+            report = get_report(report_id)
+            logger.info(f"Database query result: {report is not None}")
+        except Exception as e:
+            logger.error(f"Database query failed: {e}")
+            raise HTTPException(status_code=500, detail=f"Database query failed: {str(e)}")
+            
         if not report:
+            logger.error(f"Report {report_id} not found in database")
             raise HTTPException(status_code=404, detail="Report not found")
+        
+        logger.info(f"Report found: {report['report_id']}, path: {report['path_to_report']}")
         
         # Load domain synthesis files if available
         domain_synthesis = {}
         
         # Try to load synthesis files from storage
-        # Note: We'll need to reconstruct the storage paths based on the report structure
-        # For now, we'll return the report data and let the frontend handle file loading
+        # The domain synthesis files are stored as: pipeline_reports/{user_email}/{timestamp}/domains/{domain}_synthesis.txt
+        # We need to reconstruct the path from the report data
+        
+        if report['path_to_report']:
+            # Extract the base path from the main report path
+            # path_to_report is like: pipeline_reports/user@email.com/20251025_073929/merged_summary.txt
+            # We need: pipeline_reports/user@email.com/20251025_073929/domains/
+            base_path = report['path_to_report'].rsplit('/', 1)[0]  # Remove merged_summary.txt
+            domains_path = f"{base_path}/domains"
+            
+        logger.info(f"Looking for domain synthesis files in: {domains_path}")
+        
+        # Try to load each domain synthesis file
+        domains = ['prawo', 'polityka', 'financial']
+        for domain in domains:
+            synthesis_path = f"{domains_path}/{domain}_synthesis.txt"
+            logger.info(f"Trying to load: {synthesis_path}")
+            try:
+                # Call download_file synchronously
+                synthesis_content = download_file(synthesis_path)
+                if synthesis_content:
+                    domain_synthesis[domain] = synthesis_content
+                    logger.info(f"✓ Loaded domain synthesis for {domain} ({len(synthesis_content)} chars)")
+                else:
+                    logger.warning(f"✗ No content found for domain synthesis: {domain}")
+            except Exception as e:
+                logger.warning(f"✗ Could not load domain synthesis for {domain} from {synthesis_path}: {e}")
+                # Continue with other domains
+        else:
+            logger.warning("No path_to_report found for this report")
+        
+        logger.info(f"Final domain synthesis keys: {list(domain_synthesis.keys())}")
+        
+        # Load tips and alerts JSON if available
+        tips_alerts = {}
+        if report.get('report_alerts_tips_json_path'):
+            tips_alerts_path = report['report_alerts_tips_json_path']
+            logger.info(f"Loading tips and alerts from: {tips_alerts_path}")
+            try:
+                tips_alerts_content = download_file(tips_alerts_path)
+                if tips_alerts_content:
+                    import json
+                    tips_alerts = json.loads(tips_alerts_content)
+                    logger.info(f"✓ Loaded tips and alerts: {len(tips_alerts.get('tips', []))} tips, {len(tips_alerts.get('alerts', []))} alerts")
+                else:
+                    logger.warning("✗ No content found for tips and alerts")
+            except Exception as e:
+                logger.warning(f"✗ Could not load tips and alerts from {tips_alerts_path}: {e}")
         
         return {
             "message": "Report detail retrieved successfully",
             "report": report,
             "domain_synthesis": domain_synthesis,
+            "tips_alerts": tips_alerts,
             "timestamp": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
         logger.error(f"Failed to get report detail: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get report detail: {str(e)}")
+
+@router.get("/test-domain-synthesis/{report_id}")
+def test_domain_synthesis(report_id: str):
+    """Test endpoint to debug domain synthesis loading"""
+    try:
+        from services.database_simple import get_report
+        from services.objest_storage import download_file
+        
+        logger.info(f"Testing domain synthesis for ID: {report_id}")
+        
+        # Get report from database
+        report = get_report(report_id)
+        if not report:
+            return {"error": "Report not found"}
+        
+        # Load domain synthesis files
+        domain_synthesis = {}
+        
+        if report['path_to_report']:
+            base_path = report['path_to_report'].rsplit('/', 1)[0]
+            domains_path = f"{base_path}/domains"
+            
+            domains = ['prawo', 'polityka', 'financial']
+            for domain in domains:
+                synthesis_path = f"{domains_path}/{domain}_synthesis.txt"
+                try:
+                    synthesis_content = download_file(synthesis_path)
+                    if synthesis_content:
+                        domain_synthesis[domain] = synthesis_content
+                        logger.info(f"✓ Loaded {domain}: {len(synthesis_content)} chars")
+                    else:
+                        logger.warning(f"✗ No content for {domain}")
+                except Exception as e:
+                    logger.warning(f"✗ Error loading {domain}: {e}")
+        
+        return {
+            "report_id": report_id,
+            "path_to_report": report['path_to_report'],
+            "domain_synthesis": domain_synthesis,
+            "domain_count": len(domain_synthesis),
+            "debug_info": {
+                "base_path": report['path_to_report'].rsplit('/', 1)[0] if report['path_to_report'] else None,
+                "domains_path": f"{report['path_to_report'].rsplit('/', 1)[0]}/domains" if report['path_to_report'] else None
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Test failed: {e}")
+        return {"error": str(e)}
 
 @router.post("/reports/{report_id}/chat")
 async def chat_with_report(report_id: str, chat_data: Dict[str, Any]):
