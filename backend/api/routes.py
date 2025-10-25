@@ -14,6 +14,7 @@ from services.database_simple import create_user, get_user, update_user_settings
 from services.config import settings
 from workflows.main_workflow import main_workflow
 from services.s3_loader import load_report_from_s3
+from services.pipeline_storage import pipeline_storage
 
 logger = logging.getLogger(__name__)
 
@@ -22,22 +23,24 @@ router = APIRouter()
 
 
 @router.post("/pipeline/run")
-async def run_pipeline(telecom_data: Dict[str, Any], domains: List[str] = ["prawo", "polityka", "financial"]):
+async def run_pipeline(user_email: str, telecom_data: Dict[str, Any] = None, domains: List[str] = ["prawo", "polityka", "financial"]):
     """
     Run the complete pipeline using telecom news scraper data
     
     Args:
-        telecom_data: JSON data from telecom_news_scraper.py
+        user_email: User email for storage
+        telecom_data: JSON data from telecom_news_scraper.py (optional)
         domains: List of domains to process
         
     Returns:
-        Final comprehensive report
+        Final comprehensive report with storage paths
     """
     try:
         logger.info(f"Starting pipeline with telecom data for domains: {domains}")
         
-        # Load last telecom data from S3
-        telecom_data = load_report_from_s3()
+        # Load telecom data from S3 if not provided
+        if not telecom_data:
+            telecom_data = load_report_from_s3()
         
         # Process each domain through the pipeline
         domain_reports = {}
@@ -135,11 +138,17 @@ async def run_pipeline(telecom_data: Dict[str, Any], domains: List[str] = ["praw
         from agents.tips_alerts_generator import tips_alerts_generator
         final_tips_alerts = await tips_alerts_generator.generate_tips_alerts(domain_reports)
         
+        # Step 8: Store results in object storage and database
+        storage_result = await pipeline_storage.store_pipeline_results(
+            user_email, domain_reports, final_tips_alerts
+        )
+        
         return {
             "status": "success",
             "message": "Pipeline completed successfully",
             "domain_reports": domain_reports,
             "final_tips_alerts": final_tips_alerts,
+            "storage_result": storage_result,
             "timestamp": datetime.utcnow().isoformat()
         }
         
@@ -236,8 +245,8 @@ async def run_main_workflow(user_email: str, days_back: int = 7):
 # ====== USER MANAGEMENT ENDPOINTS ======
 
 @router.post("/users")
-async def create_new_user(user_data: Dict[str, Any]):
-    """Create a new user"""
+async def create_or_login_user(user_data: Dict[str, Any]):
+    """Create a new user or login existing user"""
     try:
         user_email = user_data.get("user_email")
         user_name = user_data.get("user_name")
@@ -247,20 +256,36 @@ async def create_new_user(user_data: Dict[str, Any]):
         if not user_email or not user_name:
             raise HTTPException(status_code=400, detail="user_email and user_name are required")
         
+        # Check if user already exists
+        existing_user = get_user(user_email)
+        if existing_user:
+            # User exists, return user info (login)
+            return {
+                "message": "User logged in successfully",
+                "user": existing_user,
+                "user_email": user_email,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        
+        # User doesn't exist, create new user
         result = create_user(user_email, user_name, report_time, report_delay_days)
         
         if result.get("status") == "error":
             raise HTTPException(status_code=400, detail=result.get("message"))
         
+        # Get the newly created user
+        new_user = get_user(user_email)
+        
         return {
             "message": "User created successfully",
+            "user": new_user,
             "user_email": user_email,
             "timestamp": datetime.utcnow().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"Failed to create user: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
+        logger.error(f"Failed to create or login user: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create or login user: {str(e)}")
 
 @router.get("/users/{user_email}")
 async def get_user_info(user_email: str):

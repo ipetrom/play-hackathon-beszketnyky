@@ -8,6 +8,9 @@ import { ReportsTable } from "@/components/reports-table"
 import { useToast } from "@/hooks/use-toast"
 import type { Report, ReportFilters } from "@/lib/types"
 import { mockReports } from "@/lib/mock-data"
+import { runPipeline, getUserReports } from "@/lib/api"
+import { Button } from "@/components/ui/button"
+import { Loader2, FileText } from "lucide-react"
 
 export default function ReportsPage() {
   const router = useRouter()
@@ -16,6 +19,7 @@ export default function ReportsPage() {
   const [user, setUser] = useState<{ name: string; email: string } | null>(null)
   const [reports, setReports] = useState<Report[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false)
   const [filters, setFilters] = useState<ReportFilters>({
     dateRange: searchParams.get("dateRange") || "Last 7d",
     category: searchParams.get("category") || "All",
@@ -54,18 +58,35 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     setIsLoading(true)
     try {
-      // TODO: Replace with actual API call
-      // const params = new URLSearchParams({
-      //   category: filters.category !== 'All' ? filters.category : '',
-      //   impact: filters.impact !== 'All' ? filters.impact : '',
-      //   from: getDateFromRange(filters.dateRange),
-      //   page: page.toString(),
-      //   pageSize: pageSize.toString(),
-      // })
-      // const response = await fetch(`/api/reports?${params}`)
-      // const data = await response.json()
+      if (user?.email) {
+        // Try to fetch real reports from API
+        try {
+          const apiReports = await getUserReports(user.email)
+          if (apiReports && apiReports.length > 0) {
+            // Convert API reports to our format
+            const convertedReports = apiReports.map((report: any) => ({
+              id: report.report_id,
+              title: `Report ${new Date(report.report_date).toLocaleDateString()}`,
+              status: report.report_status,
+              createdAt: report.created_at,
+              hasDiff: false,
+              category: report.report_domains?.join(', ') || 'Mixed',
+              impact: {
+                level: report.report_alerts > 0 ? 'High' : 'Medium' as 'Low' | 'Medium' | 'High' | 'Critical',
+                description: `${report.report_tips} tips, ${report.report_alerts} alerts`
+              },
+              date: report.report_date,
+              summary: `Generated report with ${report.report_tips} tips and ${report.report_alerts} alerts`
+            }))
+            setReports(convertedReports)
+            return
+          }
+        } catch (apiError) {
+          console.warn('Failed to fetch API reports, falling back to mock data:', apiError)
+        }
+      }
 
-      // Mock API delay
+      // Fallback to mock data
       await new Promise((resolve) => setTimeout(resolve, 500))
 
       // Filter mock data
@@ -91,6 +112,44 @@ export default function ReportsPage() {
     }
   }
 
+  const handleGenerateReport = async () => {
+    if (!user?.email) {
+      toast({
+        title: "Error",
+        description: "User email not found. Please try logging in again.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setIsGeneratingReport(true)
+    try {
+      toast({
+        title: "Generating Report",
+        description: "Starting report generation... This may take a few minutes.",
+      })
+
+      const result = await runPipeline(user.email)
+      
+      toast({
+        title: "Report Generated Successfully!",
+        description: `Report created with ${result.final_tips_alerts.tips.length} tips and ${result.final_tips_alerts.alerts.length} alerts.`,
+      })
+
+      // Refresh the reports list
+      await fetchReports()
+    } catch (error) {
+      console.error('Report generation failed:', error)
+      toast({
+        title: "Report Generation Failed",
+        description: error instanceof Error ? error.message : "An unexpected error occurred. Please try again.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsGeneratingReport(false)
+    }
+  }
+
   if (!user) {
     return null
   }
@@ -99,9 +158,23 @@ export default function ReportsPage() {
     <div className="min-h-screen bg-background">
       <ReportsHeader user={user} />
       <main className="container mx-auto px-4 py-6 space-y-6">
-        <div>
-          <h1 className="text-3xl font-bold text-balance mb-2">Reports</h1>
-          <p className="text-muted-foreground">Monitor industry changes and regulatory updates in real-time</p>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-3xl font-bold text-balance mb-2">Reports</h1>
+            <p className="text-muted-foreground">Monitor industry changes and regulatory updates in real-time</p>
+          </div>
+          <Button 
+            onClick={handleGenerateReport}
+            disabled={isGeneratingReport}
+            className="flex items-center gap-2"
+          >
+            {isGeneratingReport ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <FileText className="h-4 w-4" />
+            )}
+            {isGeneratingReport ? "Generating..." : "Make a Report"}
+          </Button>
         </div>
 
         <ReportsFilters filters={filters} onFiltersChange={setFilters} />
