@@ -16,8 +16,13 @@ class Settings(BaseSettings):
     scaleway_project_id: str = ""
     
     # Database
-    database_url: str = "postgresql://user:password@localhost/telecom_news"
-    redis_url: str = "redis://localhost:6379"
+    database_url: str = "postgresql://root:cXf2dtQlN8m6*{tef,]B@151.115.13.23:12061/rdb"
+    
+    # Scaleway Object Storage
+    scaleway_access_key: str = ""
+    scaleway_secret_key: str = ""
+    bucket_name: str = ""
+    region: str = ""
     
     # API Configuration
     api_host: str = "0.0.0.0"

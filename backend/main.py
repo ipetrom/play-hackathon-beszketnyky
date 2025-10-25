@@ -14,7 +14,7 @@ from datetime import datetime
 
 from api.routes import router as api_router
 from services.config import settings
-from services.database import init_db
+from services.database_simple import init_db
 from agents.workflow import TelecomWorkflow
 
 # Configure logging
@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     """Application lifespan manager"""
     # Startup
     logger.info("Starting Telecom News Multi-Agent System...")
-    await init_db()
+    init_db()  # Remove await since it's synchronous
     logger.info("Database initialized")
     
     yield

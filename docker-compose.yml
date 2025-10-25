@@ -43,56 +43,42 @@ services:
     networks:
       - hackathon-network
 
-#   # ====== DATABASES ======
-#   postgres:
-#     image: pgvector/pgvector:pg16
-#     environment:
-#       POSTGRES_DB: ${POSTGRES_DB_LOCAL}
-#       POSTGRES_USER: ${POSTGRES_USER_LOCAL}
-#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD_LOCAL}
-#     ports:
-#       - "5432:5432"
-#     volumes:
-#       - postgres_data:/var/lib/postgresql/data
-#       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-#     healthcheck:
-#       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER_LOCAL} -d ${POSTGRES_DB_LOCAL}"]
-#       interval: 5s
-#       timeout: 5s
-#       retries: 5
-#     networks:
-#       - hackathon-network
+  # ====== DATABASES ======
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: smart_tracker
+      POSTGRES_USER: smart_tracker_user
+      POSTGRES_PASSWORD: smart_tracker_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U smart_tracker_user -d smart_tracker"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - hackathon-network
 
-#   redis:
-#     image: redis:7-alpine
-#     ports:
-#       - "6379:6379"
-#     volumes:
-#       - redis_data:/data
-#     healthcheck:
-#       test: ["CMD", "redis-cli", "ping"]
-#       interval: 5s
-#       timeout: 3s
-#       retries: 5
-#     networks:
-#       - hackathon-network
 
-#   # ====== DEVELOPMENT TOOLS ======
-#   pgadmin:
-#     image: dpage/pgadmin4:latest
-#     environment:
-#       PGADMIN_DEFAULT_EMAIL: admin@hackathon.local
-#       PGADMIN_DEFAULT_PASSWORD: admin
-#     ports:
-#       - "5050:80"
-#     depends_on:
-#       - postgres
-#     networks:
-#       - hackathon-network
+  # ====== DEVELOPMENT TOOLS ======
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@smarttracker.local
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    networks:
+      - hackathon-network
 
-# volumes:
-#   postgres_data:
-#   redis_data:
+volumes:
+  postgres_data:
 
 networks:
   hackathon-network:

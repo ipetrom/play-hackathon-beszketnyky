@@ -10,7 +10,9 @@ import logging
 
 from agents.workflow import telecom_workflow
 from services.database import get_final_report, get_tips_alerts, get_agent_output
+from services.database_simple import create_user, get_user, update_user_settings, get_user_reports, create_report
 from services.config import settings
+from workflows.main_workflow import main_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -195,3 +197,123 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0"
     }
+
+# ====== MAIN WORKFLOW ENDPOINTS ======
+
+@router.post("/workflow/run")
+async def run_main_workflow(user_email: str, days_back: int = 7):
+    """Run the complete main workflow for a user"""
+    try:
+        logger.info(f"Starting main workflow for user: {user_email}")
+        
+        # Check if user exists
+        user = get_user(user_email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Run the complete workflow
+        result = await main_workflow.run_complete_workflow(user_email, days_back)
+        
+        if result.get("status") == "success":
+            return {
+                "message": "Workflow completed successfully",
+                "result": result,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("message", "Workflow failed"))
+        
+    except Exception as e:
+        logger.error(f"Main workflow failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Main workflow failed: {str(e)}")
+
+# ====== USER MANAGEMENT ENDPOINTS ======
+
+@router.post("/users")
+async def create_new_user(user_data: Dict[str, Any]):
+    """Create a new user"""
+    try:
+        user_email = user_data.get("user_email")
+        user_name = user_data.get("user_name")
+        report_time = user_data.get("report_time", "09:00:00")
+        report_delay_days = user_data.get("report_delay_days", 1)
+        
+        if not user_email or not user_name:
+            raise HTTPException(status_code=400, detail="user_email and user_name are required")
+        
+        result = create_user(user_email, user_name, report_time, report_delay_days)
+        
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("message"))
+        
+        return {
+            "message": "User created successfully",
+            "user_email": user_email,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to create user: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to create user: {str(e)}")
+
+@router.get("/users/{user_email}")
+async def get_user_info(user_email: str):
+    """Get user information"""
+    try:
+        user = get_user(user_email)
+        
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        return {
+            "message": "User retrieved successfully",
+            "user": user,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get user: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user: {str(e)}")
+
+@router.put("/users/{user_email}/settings")
+async def update_user_preferences(user_email: str, settings_data: Dict[str, Any]):
+    """Update user settings"""
+    try:
+        report_time = settings_data.get("report_time")
+        report_delay_days = settings_data.get("report_delay_days")
+        
+        if report_time is None and report_delay_days is None:
+            raise HTTPException(status_code=400, detail="At least one setting must be provided")
+        
+        result = update_user_settings(user_email, report_time, report_delay_days)
+        
+        if result.get("status") == "error":
+            raise HTTPException(status_code=400, detail=result.get("message"))
+        
+        return {
+            "message": "User settings updated successfully",
+            "user_email": user_email,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to update user settings: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update user settings: {str(e)}")
+
+@router.get("/users/{user_email}/reports")
+async def get_user_reports_endpoint(user_email: str, status: Optional[str] = None):
+    """Get user reports"""
+    try:
+        reports = get_user_reports(user_email, status)
+        
+        return {
+            "message": f"Reports retrieved for user {user_email}",
+            "user_email": user_email,
+            "reports": reports,
+            "total_reports": len(reports),
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get user reports: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get user reports: {str(e)}")
