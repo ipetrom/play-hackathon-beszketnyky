@@ -1,85 +1,78 @@
 # version: '3.8'
 
 services:
-  # # ====== BACKEND ======
-  # backend:
-  #   build: 
-  #     context: ./backend
-  #     dockerfile: Dockerfile
-  #   ports:
-  #     - "8000:8000"
-  #   environment:
-  #     - ENVIRONMENT=development
-  #     - POSTGRES_HOST=postgres
-  #     - POSTGRES_DB=${POSTGRES_DB_LOCAL}
-  #     - POSTGRES_USER=${POSTGRES_USER_LOCAL}
-  #     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD_LOCAL}
-  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
-  #     - SCALEWAY_API_KEY=${SCALEWAY_API_KEY}
-  #     - SCALEWAY_PROJECT_ID=${SCALEWAY_PROJECT_ID}
-  #   depends_on:
-  #     postgres:
-  #       condition: service_healthy
-  #   volumes:
-  #     - ./backend:/app
-  #   networks:
-  #     - hackathon-network
+    # # ====== BACKEND ======
+    backend:
+        build:
+            context: ./backend
+            dockerfile: Dockerfile
+        ports:
+            - "8000:8000"
+        environment:
+            - SERPER_API_KEY=9f94f3f0ff854108aa68a5c186c45095a65d8c4e
 
-  # # ====== FRONTEND ======
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile.dev
-    ports:
-      - "5173:5173"
-    environment:
-      - REACT_APP_API_URL=http://localhost:8000
-      - CHOKIDAR_USEPOLLING=true
-    # depends_on:
-    #   - backend
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    networks:
-      - hackathon-network
+            - PERPLEXITY_API_KEY=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
+            - SCALEWAY_API_KEY=a3c535e8-93ba-46bf-847e-7115853dcc0e
+            - SCALEWAY_BASE_URL=https://api.scaleway.ai/f515e043-422b-48bf-95a7-2da7063d7858/v1
+            - SCALEWAY_MODEL=qwen3-235b-a22b-instruct-2507
+            - SCALEWAY_TEMPERATURE=0.1
 
-  # ====== DATABASES ======
-  postgres:
-    image: postgres:16-alpine
-    environment:
-      POSTGRES_DB: smart_tracker
-      POSTGRES_USER: smart_tracker_user
-      POSTGRES_PASSWORD: smart_tracker_password
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U smart_tracker_user -d smart_tracker"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-    networks:
-      - hackathon-network
+            - DATABASE_URL=postgresql+asyncpg://user:password@localhost:5432/telecom_news
 
+            - API_HOST=0.0.0.0
+            - API_PORT=8000
+            - DEBUG=false
 
-  # ====== DEVELOPMENT TOOLS ======
-  pgadmin:
-    image: dpage/pgadmin4:latest
-    environment:
-      PGADMIN_DEFAULT_EMAIL: admin@smarttracker.local
-      PGADMIN_DEFAULT_PASSWORD: admin
-    ports:
-      - "5050:80"
-    depends_on:
-      - postgres
-    networks:
-      - hackathon-network
+            - MAX_CONCURRENT_AGENTS=5
+            - REQUEST_TIMEOUT=30
+            - MAX_RETRIES=3
 
-volumes:
-  postgres_data:
+            - SERPER_BASE_URL=https://google.serper.dev
+            - MAX_SEARCH_RESULTS=10
+
+            - PERPLEXITY_BASE_URL=https://api.perplexity.ai
+            - PERPLEXITY_MODEL=sonar
+
+            - MIN_CONTENT_LENGTH=100
+            - MAX_CONTENT_LENGTH=10000
+
+            - LOG_LEVEL=INFO
+
+            - SCALEWAY_ACCESS_KEY=SCWRREVR0G9KD0MMYEV9
+            - SCALEWAY_SECRET_KEY=986be579-8b40-480d-8595-0d5dab2198c9
+            - BUCKET_NAME=test-bucket-team4
+            - REGION=pl-waw
+
+            - REPORT_SOURCE_FILE=telecom_report_20251024_214933.json
+
+            - SMTP_HOST=smtp.gmail.com
+            - SMTP_PORT=587
+            - SMTP_USER=studyinfo64@gmail.com
+            - SMTP_PASSWORD=imdn mnlm netg qrmt
+            - SMTP_FROM_EMAIL=studyinfo64@gmail.com
+            - SMTP_FROM_NAME=Radar Biznes | Smart Tracker
+        depends_on:
+
+        volumes:
+            - ./backend:/app
+        networks:
+            - hackathon-network
+
+    ui:
+        build:
+            context: ./ui
+            dockerfile: Dockerfile
+        ports:
+            - "3000:3000"
+        environment:
+            - REACT_APP_API_URL=http://localhost:8000
+            - CHOKIDAR_USEPOLLING=true
+        depends_on:
+            - backend
+
+        networks:
+            - hackathon-network
 
 networks:
-  hackathon-network:
-    driver: bridge
+    hackathon-network:
+        driver: bridge
