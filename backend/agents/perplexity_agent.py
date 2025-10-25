@@ -19,28 +19,28 @@ class PerplexityService:
         self.name = "PerplexityService"
         self.domains = settings.domains
         
-        # Domain-specific search queries (focused on last week)
+        # Domain-specific search queries
         self.domain_queries = {
             "prawo": [
-                "Poland telecommunications law regulation UKE UOKiK last week",
-                "Polish telecom legal changes UKE decisions recent",
-                "Poland telecom regulatory updates UOKiK competition last week",
-                "UKE spectrum allocation decisions Polish telecom recent",
-                "Poland telecom law changes EU directives last week"
+                "Poland telecommunications law regulation UKE UOKiK 2025",
+                "Polish telecom operators legal requirements spectrum allocation",
+                "Poland telecom regulatory changes 2025 EU directives",
+                "UKE decisions Polish telecom market 2025",
+                "telecom law Poland spectrum auction 5G"
             ],
             "polityka": [
-                "Poland telecom policy government announcements last week",
-                "Polish telecom ministry digital policy recent changes",
-                "Poland 5G strategy government telecom recent updates",
-                "Polish telecom infrastructure policy EU funding last week",
-                "Poland telecom competition policy government recent"
+                "Poland telecom policy government strategy 2025",
+                "Polish telecom ministry digital transformation policy",
+                "Poland 5G strategy government telecom investment",
+                "Polish telecom infrastructure policy EU funding",
+                "Poland telecom competition policy market regulation"
             ],
             "financial": [
-                "Poland telecom market financial results last week",
-                "Polish telecom operators earnings revenue recent",
-                "Poland telecom market stock prices recent changes",
-                "telecom investment Poland infrastructure funding last week",
-                "Polish telecom market financial outlook recent"
+                "Poland telecom market financial results 2025",
+                "Polish telecom operators revenue profit investment",
+                "Poland telecom market capitalization stock prices",
+                "telecom investment Poland infrastructure funding",
+                "Polish telecom market growth financial outlook"
             ]
         }
     

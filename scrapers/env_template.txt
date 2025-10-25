@@ -1,0 +1,19 @@
+# Telecommunications Intelligence Scraper Environment Variables
+# Copy this file to .env and set your actual API key
+
+# Serper API Key for Google search integration
+SERPER_API_KEY=your_serper_api_key_here
+
+# Optional: Email configuration for automated reports
+EMAIL_SMTP_SERVER=smtp.gmail.com
+EMAIL_SMTP_PORT=587
+EMAIL_SENDER=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
+EMAIL_RECIPIENTS=recipient1@example.com,recipient2@example.com
+
+# Optional: Database configuration
+DATABASE_URL=postgresql://user:password@localhost:5432/telecom_intelligence
+
+# Optional: Logging configuration
+LOG_LEVEL=INFO
+LOG_FILE=logs/telecom_scraper.log
