@@ -12,6 +12,7 @@ from agents.workflow import telecom_workflow
 from services.database import get_final_report, get_tips_alerts, get_agent_output
 from services.database_simple import create_user, get_user, update_user_settings, get_user_reports, create_report
 from services.config import settings
+from workflows.main_workflow import main_workflow
 
 logger = logging.getLogger(__name__)
 
@@ -196,6 +197,35 @@ async def health_check():
         "timestamp": datetime.utcnow().isoformat(),
         "version": "1.0.0"
     }
+
+# ====== MAIN WORKFLOW ENDPOINTS ======
+
+@router.post("/workflow/run")
+async def run_main_workflow(user_email: str, days_back: int = 7):
+    """Run the complete main workflow for a user"""
+    try:
+        logger.info(f"Starting main workflow for user: {user_email}")
+        
+        # Check if user exists
+        user = get_user(user_email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Run the complete workflow
+        result = await main_workflow.run_complete_workflow(user_email, days_back)
+        
+        if result.get("status") == "success":
+            return {
+                "message": "Workflow completed successfully",
+                "result": result,
+                "timestamp": datetime.utcnow().isoformat()
+            }
+        else:
+            raise HTTPException(status_code=500, detail=result.get("message", "Workflow failed"))
+        
+    except Exception as e:
+        logger.error(f"Main workflow failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Main workflow failed: {str(e)}")
 
 # ====== USER MANAGEMENT ENDPOINTS ======
 
