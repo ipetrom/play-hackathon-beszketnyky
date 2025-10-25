@@ -1,0 +1,100 @@
+{
+  "url": "https://www.play.pl/oferta/play-abonament/przejdz-na-abonament",
+  "plans": [
+    {
+      "plan_id": "S",
+      "name": "Oferta S",
+      "price": {
+        "amount": 50.0,
+        "currency": "PLN"
+      },
+      "old_price": null,
+      "price_note": "45 zł 40 zł cena po rabatach",
+      "features": [],
+      "conditions": [],
+      "parsed": {
+        "activation_fee_pln": null,
+        "contract_length_months": null,
+        "domestic_data_gb": null,
+        "roaming_gb": null
+      },
+      "raw_text_blob": "Abonament komórkowy Oferta S 45 zł 40 zł cena po rabatach Sprawdź Oferta zawiera: Internet w telefonie 6 GB w tym 6 GB w roamingu UE Rozmowy, SMS-y i MMS-y bez limitu Warunki oferty: Aktywacja za 50 zł Umowa na 24 miesiące"
+    },
+    {
+      "plan_id": "S+",
+      "name": "Oferta S+",
+      "price": {
+        "amount": 50.0,
+        "currency": "PLN"
+      },
+      "old_price": null,
+      "price_note": "65 zł 60 zł cena po rabatach",
+      "features": [],
+      "conditions": [],
+      "parsed": {
+        "activation_fee_pln": null,
+        "contract_length_months": null,
+        "domestic_data_gb": null,
+        "roaming_gb": null
+      },
+      "raw_text_blob": "Abonament komórkowy Oferta S+ 65 zł 60 zł cena po rabatach Sprawdź Oferta zawiera: Internet w telefonie 50 GB w tym 17,44 GB w roamingu UE Rozmowy, SMS-y i MMS-y bez limitu Warunki oferty: Aktywacja za 50 zł Umowa na 24 miesiące"
+    },
+    {
+      "plan_id": "M",
+      "name": "Oferta M",
+      "price": {
+        "amount": 50.0,
+        "currency": "PLN"
+      },
+      "old_price": null,
+      "price_note": "75 zł cena po rabatach",
+      "features": [],
+      "conditions": [],
+      "parsed": {
+        "activation_fee_pln": null,
+        "contract_length_months": null,
+        "domestic_data_gb": null,
+        "roaming_gb": null
+      },
+      "raw_text_blob": "Abonament komórkowy Oferta M 75 zł cena po rabatach Sprawdź Oferta zawiera: 2x więcej GB - Internet w telefonie 150 GB 300 GB z pełną prędkością, w tym 21,80 GB w roamingu UE Rozmowy, SMS-y i MMS-y bez limitu Dostęp do telewizji PLAY NOW (w cenie abonamentu) Zobacz listę kanałów Warunki oferty: Aktywacja za 50 zł Umowa na 24 miesiące"
+    },
+    {
+      "plan_id": "L",
+      "name": "Oferta L",
+      "price": {
+        "amount": 50.0,
+        "currency": "PLN"
+      },
+      "old_price": null,
+      "price_note": "95 zł cena po rabatach",
+      "features": [],
+      "conditions": [],
+      "parsed": {
+        "activation_fee_pln": null,
+        "contract_length_months": null,
+        "domestic_data_gb": null,
+        "roaming_gb": null
+      },
+      "raw_text_blob": "Abonament komórkowy Oferta L 95 zł cena po rabatach Sprawdź Oferta zawiera: Internet w telefonie bez limitu prędkości i danych, w tym 27,62 GB w roamingu UE Rozmowy, SMS-y i MMS-y bez limitu Dostęp do telewizji PLAY NOW (w cenie abonamentu) Zobacz listę kanałów Warunki oferty: Aktywacja za 50 zł Umowa na 24 miesiące"
+    },
+    {
+      "plan_id": "HOMEBOX",
+      "name": "Oferta HOMEBOX",
+      "price": {
+        "amount": 50.0,
+        "currency": "PLN"
+      },
+      "old_price": null,
+      "price_note": "110 zł cena po rabatach",
+      "features": [],
+      "conditions": [],
+      "parsed": {
+        "activation_fee_pln": null,
+        "contract_length_months": null,
+        "domestic_data_gb": null,
+        "roaming_gb": null
+      },
+      "raw_text_blob": "Abonament komórkowy Oferta HOMEBOX 110 zł cena po rabatach Sprawdź Oferta zawiera: Internet w telefonie bez limitu prędkości i danych, w tym 27,62 GB w roamingu UE Rozmowy, SMS-y i MMS-y bez limitu Dostęp do telewizji PLAY NOW (w cenie abonamentu) Zobacz listę kanałów Dodatkowa karta SIM z internetem bezprzewodowym bez limitu prędkości i danych Warunki oferty: Aktywacja za 50 zł Umowa na 24 miesiące"
+    }
+  ]
+}
