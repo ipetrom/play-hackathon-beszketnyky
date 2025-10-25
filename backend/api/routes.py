@@ -13,6 +13,7 @@ from services.database_simple import create_user, get_user, update_user_settings
 from services.config import settings
 from workflows.main_workflow import main_workflow
 from services.s3_loader import load_report_from_s3
+from services.email_service import email_service
 from services.pipeline_storage import pipeline_storage
 
 logger = logging.getLogger(__name__)
@@ -36,6 +37,12 @@ async def run_pipeline(user_email: str, telecom_data: Dict[str, Any] = None, dom
     """
     try:
         logger.info(f"Starting pipeline with telecom data for domains: {domains}")
+
+        user = get_user(str("adamstudio777@gmail.com"))
+        print(f"\n*******\n\nUSR: {user}\n\n*******")
+
+                
+        user_name = user.get("user_name", "User")
         
         # Load telecom data from S3 if not provided
         telecom_data = load_report_from_s3()
@@ -56,8 +63,6 @@ async def run_pipeline(user_email: str, telecom_data: Dict[str, Any] = None, dom
                 # Step 5: Get Perplexity context (skip scraping and processing)
                 from services.perplexity_service import perplexity_service
                 perplexity_context = await perplexity_service.get_domain_context(domain)
-                
-                print(f"\n\nPerplexity context for\n\n {domain}: {perplexity_context}")
                 
                 if not perplexity_context or perplexity_context.get("status") != "success":
                     logger.warning(f"Perplexity context failed for domain: {domain}")
@@ -139,6 +144,14 @@ async def run_pipeline(user_email: str, telecom_data: Dict[str, Any] = None, dom
         # Step 8: Store results in object storage and database
         storage_result = await pipeline_storage.store_pipeline_results(
             user_email, domain_reports, final_tips_alerts
+        )
+        
+        # Step 9: Send email notification
+        await email_service.send_report_email(
+            user_email=user_email,
+            user_name=user_name,
+            domain_reports=domain_reports,
+            tips_alerts=final_tips_alerts
         )
         
         return {

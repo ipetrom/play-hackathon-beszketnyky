@@ -3,6 +3,7 @@ Configuration settings for the Telecom News Multi-Agent System
 """
 
 from pydantic_settings import BaseSettings
+from pydantic import Field
 from typing import List, Optional
 import os
 import dotenv
@@ -13,6 +14,12 @@ SERPER_API_KEY = os.getenv("SERPER_API_KEY", "")
 PERPLEXITY_API_KEY = os.getenv("PERPLEXITY_API_KEY", "")
 SCALEWAY_API_KEY = os.getenv("SCALEWAY_API_KEY", "")
 
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
+SMTP_PORT = os.getenv("SMTP_PORT", 587)
+SMTP_USER = os.getenv("SMTP_USER", "")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "")
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Telecom News System")
 
 class Settings(BaseSettings):
     """Application settings"""
@@ -71,6 +78,14 @@ class Settings(BaseSettings):
     # Impact assessment
     impact_levels: List[str] = ["low", "medium", "high"]
     time_horizons: List[str] = ["immediate", "near", "medium"]
+    
+    # Email settings
+    smtp_host: str = Field(default="smtp.gmail.com", env="SMTP_HOST")
+    smtp_port: int = Field(default=587, env="SMTP_PORT")
+    smtp_user: str = Field(default="", env="SMTP_USER")
+    smtp_password: str = Field(default="", env="SMTP_PASSWORD")
+    smtp_from_email: str = Field(default="", env="SMTP_FROM_EMAIL")
+    smtp_from_name: str = Field(default="Telecom News System", env="SMTP_FROM_NAME")
     
     class Config:
         env_file = ".env"
