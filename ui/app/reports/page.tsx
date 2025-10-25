@@ -7,8 +7,7 @@ import { ReportsFilters } from "@/components/reports-filters"
 import { ReportsTable } from "@/components/reports-table"
 import { useToast } from "@/hooks/use-toast"
 import type { Report, ReportFilters } from "@/lib/types"
-import { mockReports } from "@/lib/mock-data"
-import { runPipeline, getUserReports } from "@/lib/api"
+import { runPipeline, getUserReports, getAllReports } from "@/lib/api"
 import { Button } from "@/components/ui/button"
 import { Loader2, FileText } from "lucide-react"
 
@@ -58,48 +57,40 @@ export default function ReportsPage() {
   const fetchReports = async () => {
     setIsLoading(true)
     try {
-      if (user?.email) {
-        // Try to fetch real reports from API
-        try {
-          const apiReports = await getUserReports(user.email)
-          if (apiReports && apiReports.length > 0) {
-            // Convert API reports to our format
-            const convertedReports = apiReports.map((report: any) => ({
-              id: report.report_id,
-              title: `Report ${new Date(report.report_date).toLocaleDateString()}`,
-              status: report.report_status,
-              createdAt: report.created_at,
-              hasDiff: false,
-              category: report.report_domains?.join(', ') || 'Mixed',
-              impact: {
-                level: report.report_alerts > 0 ? 'High' : 'Medium' as 'Low' | 'Medium' | 'High' | 'Critical',
-                description: `${report.report_tips} tips, ${report.report_alerts} alerts`
-              },
-              date: report.report_date,
-              summary: `Generated report with ${report.report_tips} tips and ${report.report_alerts} alerts`
-            }))
-            setReports(convertedReports)
-            return
-          }
-        } catch (apiError) {
-          console.warn('Failed to fetch API reports, falling back to mock data:', apiError)
-        }
-      }
-
-      // Fallback to mock data
-      await new Promise((resolve) => setTimeout(resolve, 500))
-
-      // Filter mock data
-      let filtered = [...mockReports]
-
+      // Fetch real reports from API
+      const apiData = await getAllReports()
+      const apiReports = apiData.reports || []
+      
+      // Convert API reports to our format
+      const convertedReports = apiReports.map((report: any) => ({
+        id: report.report_id,
+        title: `Report ${new Date(report.report_date).toLocaleDateString()}`,
+        status: report.report_status,
+        createdAt: report.created_at,
+        hasDiff: false,
+        category: Array.isArray(report.report_domains) ? report.report_domains.join(', ') : 'Mixed',
+        impact: {
+          level: report.report_alerts > 0 ? 'High' : 'Medium' as 'Low' | 'Medium' | 'High' | 'Critical',
+          description: `${report.report_tips} tips, ${report.report_alerts} alerts`
+        },
+        date: report.report_date,
+        summary: `Generated report with ${report.report_tips} tips and ${report.report_alerts} alerts`,
+        user_email: report.user_email,
+        path_to_report: report.path_to_report,
+        report_alerts_tips_json_path: report.report_alerts_tips_json_path
+      }))
+      
+      // Apply filters
+      let filtered = convertedReports
+      
       if (filters.category !== "All") {
-        filtered = filtered.filter((r) => r.category === filters.category)
+        filtered = filtered.filter((r: any) => r.category.includes(filters.category))
       }
 
       if (filters.impact !== "All") {
-        filtered = filtered.filter((r) => r.impact.level === filters.impact)
+        filtered = filtered.filter((r: any) => r.impact.level === filters.impact)
       }
-
+      
       setReports(filtered)
     } catch (error) {
       toast({

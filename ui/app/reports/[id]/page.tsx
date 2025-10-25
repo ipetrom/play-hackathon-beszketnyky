@@ -9,9 +9,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { ReportsHeader } from "@/components/reports-header"
 import { ReportDiff } from "@/components/report-diff"
 import { ReportChat } from "@/components/report-chat"
+import { DomainSynthesis } from "@/components/domain-synthesis"
 import { useToast } from "@/hooks/use-toast"
 import type { ReportDetail } from "@/lib/types"
 import { mockReportDetails } from "@/lib/mock-data"
+import { getReportDetail } from "@/lib/api"
 
 export default function ReportDetailPage() {
   const router = useRouter()
@@ -39,11 +41,44 @@ export default function ReportDetailPage() {
   const fetchReport = async () => {
     setIsLoading(true)
     try {
-      // TODO: Replace with actual API call
-      // const response = await fetch(`/api/reports/${params.id}`)
-      // const data = await response.json()
+      // Try to fetch real report from API
+      try {
+        const apiData = await getReportDetail(params.id as string)
+        const apiReport = apiData.report
+        
+        if (apiReport) {
+          // Convert API report to our format
+          const convertedReport: ReportDetail = {
+            id: apiReport.report_id,
+            title: `Report ${new Date(apiReport.report_date).toLocaleDateString()}`,
+            category: apiReport.report_domains?.join(', ') || 'Mixed',
+            impact: {
+              level: apiReport.report_alerts > 0 ? 'High' : 'Medium' as 'Low' | 'Medium' | 'High' | 'Critical',
+              description: `${apiReport.report_tips} tips, ${apiReport.report_alerts} alerts`,
+              score: apiReport.report_alerts + apiReport.report_tips
+            },
+            createdAt: apiReport.created_at,
+            deadline: undefined,
+            summary: `Generated report with ${apiReport.report_tips} tips and ${apiReport.report_alerts} alerts`,
+            body: `This report contains analysis across ${apiReport.report_domains?.join(', ')} domains with ${apiReport.report_tips} actionable tips and ${apiReport.report_alerts} alerts for business decision-making.`,
+            entities: apiReport.report_domains || [],
+            sources: [
+              { label: "Merged Summary", url: apiReport.path_to_report || "#" },
+              { label: "Tips & Alerts", url: apiReport.report_alerts_tips_json_path || "#" }
+            ],
+            metadataJson: JSON.stringify(apiReport, null, 2),
+            hasDiff: false,
+            diff: undefined
+          }
+          
+          setReport(convertedReport)
+          return
+        }
+      } catch (apiError) {
+        console.warn('Failed to fetch API report, falling back to mock data:', apiError)
+      }
 
-      // Mock API delay
+      // Fallback to mock data
       await new Promise((resolve) => setTimeout(resolve, 500))
 
       // Find mock report
@@ -252,6 +287,8 @@ export default function ReportDetailPage() {
                   />
                 </CardContent>
               </Card>
+
+              <DomainSynthesis reportId={report.id} reportData={report} />
 
               {report.hasDiff && report.diff && <ReportDiff diff={report.diff} />}
 

@@ -64,7 +64,11 @@ export function ReportsTable({
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Title</TableHead>
+              <TableHead>Report Date</TableHead>
+              <TableHead>User</TableHead>
+              <TableHead>Domains</TableHead>
+              <TableHead>Tips</TableHead>
+              <TableHead>Alerts</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Created</TableHead>
               <TableHead className="text-right">Actions</TableHead>
@@ -77,9 +81,9 @@ export function ReportsTable({
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => router.push(`/reports/${report.id}`)}
               >
-                <TableCell className="font-medium max-w-md">
+                <TableCell className="font-medium">
                   <div className="flex items-center gap-2">
-                    {report.title}
+                    {new Date(report.date || report.createdAt).toLocaleDateString()}
                     {report.hasDiff && (
                       <Badge variant="outline" className="text-xs">
                         Diff
@@ -87,7 +91,33 @@ export function ReportsTable({
                     )}
                   </div>
                 </TableCell>
-                <TableCell>{report.status}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">
+                  {report.user_email || 'Unknown'}
+                </TableCell>
+                <TableCell>
+                  <div className="flex flex-wrap gap-1">
+                    {report.category?.split(', ').map((domain: string, index: number) => (
+                      <Badge key={index} variant="outline" className="text-xs">
+                        {domain}
+                      </Badge>
+                    )) || <Badge variant="outline" className="text-xs">Mixed</Badge>}
+                  </div>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge variant="secondary" className="text-xs">
+                    {report.impact?.description?.split(' ')[0] || '0'} tips
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-center">
+                  <Badge variant={report.impact?.level === 'High' ? 'destructive' : 'secondary'} className="text-xs">
+                    {report.impact?.description?.split(' ')[2] || '0'} alerts
+                  </Badge>
+                </TableCell>
+                <TableCell>
+                  <Badge variant={report.status === 'published' ? 'default' : 'secondary'}>
+                    {report.status}
+                  </Badge>
+                </TableCell>
                 <TableCell className="text-muted-foreground">
                   {new Date(report.createdAt).toLocaleDateString()}
                 </TableCell>
@@ -118,7 +148,9 @@ export function ReportsTable({
           >
             <CardContent className="p-4 space-y-3">
               <div className="flex items-start justify-between gap-2">
-                <h3 className="font-medium text-balance flex-1">{report.title}</h3>
+                <h3 className="font-medium text-balance flex-1">
+                  Report {new Date(report.date || report.createdAt).toLocaleDateString()}
+                </h3>
                 {report.hasDiff && (
                   <Badge variant="outline" className="text-xs">
                     Diff
@@ -128,10 +160,26 @@ export function ReportsTable({
 
               <div className="flex flex-wrap gap-2">
                 <Badge variant="secondary">{report.status}</Badge>
+                {report.category?.split(', ').map((domain: string, index: number) => (
+                  <Badge key={index} variant="outline" className="text-xs">
+                    {domain}
+                  </Badge>
+                )) || <Badge variant="outline" className="text-xs">Mixed</Badge>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-muted-foreground">User:</span>
+                  <p className="font-medium">{report.user_email || 'Unknown'}</p>
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Tips/Alerts:</span>
+                  <p className="font-medium">{report.impact?.description || '0 tips, 0 alerts'}</p>
+                </div>
               </div>
 
               <div className="flex items-center justify-between text-sm text-muted-foreground">
-                <span>{new Date(report.createdAt).toLocaleDateString()}</span>
+                <span>Created: {new Date(report.createdAt).toLocaleDateString()}</span>
               </div>
 
               <Button size="sm" className="w-full">

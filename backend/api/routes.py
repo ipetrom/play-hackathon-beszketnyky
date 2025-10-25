@@ -9,7 +9,6 @@ from datetime import datetime
 import logging
 
 from agents.workflow import telecom_workflow
-from services.database import get_final_report, get_tips_alerts, get_agent_output
 from services.database_simple import create_user, get_user, update_user_settings, get_user_reports, create_report
 from services.config import settings
 from workflows.main_workflow import main_workflow
@@ -157,51 +156,6 @@ async def run_pipeline(user_email: str, telecom_data: Dict[str, Any] = None, dom
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {str(e)}")
 
 
-@router.get("/reports")
-async def get_all_reports():
-    """Get all available domain reports"""
-    try:
-        reports = {}
-        
-        for domain in settings.domains:
-            report = await get_final_report(domain)
-            if report:
-                reports[domain] = report
-        
-        return {
-            "message": "All reports retrieved",
-            "reports": reports,
-            "total_domains": len(reports),
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get all reports: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get reports: {str(e)}")
-
-
-@router.get("/tips-alerts")
-async def get_tips_alerts():
-    """Get final tips and alerts"""
-    try:
-        tips_alerts = await get_tips_alerts()
-        
-        if not tips_alerts:
-            return {
-                "message": "No tips and alerts available",
-                "status": "not_found",
-                "timestamp": datetime.utcnow().isoformat()
-            }
-        
-        return {
-            "message": "Tips and alerts retrieved",
-            "tips_alerts": tips_alerts,
-            "timestamp": datetime.utcnow().isoformat()
-        }
-        
-    except Exception as e:
-        logger.error(f"Failed to get tips and alerts: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to get tips and alerts: {str(e)}")
 
 
 @router.get("/health")
@@ -348,3 +302,82 @@ async def get_user_reports_endpoint(user_email: str, status: Optional[str] = Non
     except Exception as e:
         logger.error(f"Failed to get user reports: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get user reports: {str(e)}")
+
+@router.get("/reports")
+async def get_all_reports(status: Optional[str] = None, limit: int = 50, offset: int = 0):
+    """Get all reports from all users"""
+    try:
+        from services.database_simple import SessionLocal, Report
+        
+        session = SessionLocal()
+        
+        # Build query
+        query = session.query(Report)
+        if status:
+            query = query.filter_by(report_status=status)
+        
+        # Apply pagination
+        total_count = query.count()
+        reports = query.order_by(Report.created_at.desc()).offset(offset).limit(limit).all()
+        
+        session.close()
+        
+        # Convert to dict format
+        reports_data = [
+            {
+                "report_id": str(report.report_id),
+                "user_email": report.user_email,
+                "report_date": report.report_date,
+                "report_status": report.report_status,
+                "report_domains": report.report_domains,
+                "report_alerts": report.report_alerts,
+                "report_tips": report.report_tips,
+                "path_to_report": report.path_to_report,
+                "report_alerts_tips_json_path": report.report_alerts_tips_json_path,
+                "created_at": report.created_at
+            }
+            for report in reports
+        ]
+        
+        return {
+            "message": "All reports retrieved successfully",
+            "reports": reports_data,
+            "total_reports": total_count,
+            "limit": limit,
+            "offset": offset,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get all reports: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get all reports: {str(e)}")
+
+@router.get("/reports/{report_id}")
+async def get_report_detail(report_id: str):
+    """Get detailed report with domain synthesis files"""
+    try:
+        from services.database_simple import get_report
+        from services.objest_storage import download_file
+        
+        # Get report from database
+        report = get_report(report_id)
+        if not report:
+            raise HTTPException(status_code=404, detail="Report not found")
+        
+        # Load domain synthesis files if available
+        domain_synthesis = {}
+        
+        # Try to load synthesis files from storage
+        # Note: We'll need to reconstruct the storage paths based on the report structure
+        # For now, we'll return the report data and let the frontend handle file loading
+        
+        return {
+            "message": "Report detail retrieved successfully",
+            "report": report,
+            "domain_synthesis": domain_synthesis,
+            "timestamp": datetime.utcnow().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"Failed to get report detail: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get report detail: {str(e)}")
