@@ -33,7 +33,7 @@ The platform uses a coordinated multi-agent architecture where specialized agent
 | **Tips & Alerts Generator** | Creates actionable insights |
 | **Final Summarizer** | Synthesizes comprehensive reports |
 
-![Architecture](docs/architecture.jpg)
+![Architecture](docs/architecture-play.png)
 
 ---
 
