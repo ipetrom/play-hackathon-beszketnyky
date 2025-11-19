@@ -26,12 +26,13 @@ The platform uses a coordinated multi-agent architecture where specialized agent
 
 | Agent | Responsibility |
 |-------|-----------------|
-| **Writer Agent** | Generates market narratives and reports |
-| **Keeper Agent** | Manages data storage and retrieval |
-| **Perplexity Agent** | External information verification |
-| **Serper Verification Agent** | Search-based fact verification |
-| **Tips & Alerts Generator** | Creates actionable insights |
-| **Final Summarizer** | Synthesizes comprehensive reports |
+| **Agent 1: Verification** | Checks if the scraped page fits the stream (right source/topic), filters out obvious noise and errors |
+| **Agent 2: Ingestor** | Cleans and normalizes relevant content, rejects irrelevant fragments and prepares data for analysis |
+| **Agent 3: Writer** | Structures the preprocessed information into clear narratives/snippets ready for further processing |
+| **Agent X: Perplexity** | Calls Perplexity to summarize the latest news and enrich internal data with fresh external context |
+| **Agent 4: Category** | Combines Writer + Perplexity outputs and assigns categories/impact levels to each piece of information |
+| **Agent 5: Tips + Alerts + Scoring** | Uses the code-based report to generate prioritized tips, alerts and a final impact/importance score |
+
 
 ![Architecture](docs/architecture-play.png)
 
