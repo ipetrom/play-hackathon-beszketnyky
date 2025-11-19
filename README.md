@@ -33,6 +33,14 @@ The platform uses a coordinated multi-agent architecture where specialized agent
 | **Agent 4: Category** | Combines Writer + Perplexity outputs and assigns categories/impact levels to each piece of information |
 | **Agent 5: Tips + Alerts + Scoring** | Uses the code-based report to generate prioritized tips, alerts and a final impact/importance score |
 
+Each stream represents a separate signal category in the system:
+
+- **Stream A – Legal (Prawna kategoria)**  
+- **Stream B – Policy / Regulatory (Polityczna kategoria)**  
+- **Stream C – Market / Competitive (Rynkowa kategoria)**  
+
+Together, these streams ensure that legal, political and market signals are processed in parallel and then merged into a single code-based report.
+
 
 ![Architecture](docs/architecture-play.png)
 
